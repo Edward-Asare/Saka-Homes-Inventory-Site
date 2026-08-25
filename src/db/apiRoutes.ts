@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs } from './index';
-import { requireAuth, requireRole, generateAuthToken } from '../middleware/auth';
+import { requireAuth, requireRole, generateAuthToken, syncOrGetSupabaseProfile } from '../middleware/auth';
 import { 
   validateRequest, 
   idParamSchema, 
@@ -39,18 +40,48 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
     if (trimmedUsername === 'guest') trimmedUsername = 'guest@sakainventory';
     if (trimmedUsername === 'viewer') trimmedUsername = 'guest@sakainventory';
 
-    // Query user by parameterized username or alias
+    // 1. Query user by parameterized username or alias in local PostgreSQL DB
     let result = await pool.query(
       'SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1 OR LOWER(username) = $2',
       [trimmedUsername, String(username).trim().toLowerCase()]
     );
 
-    if (result.rows.length === 0) {
+    let authenticatedUser: any = null;
+
+    if (result.rows.length > 0) {
+      const candidate = result.rows[0];
+      if (!candidate.is_active) {
+        await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
+          targetUserId: candidate.id,
+          targetUsername: candidate.username,
+          details: 'Login rejected: account is deactivated',
+          ipAddress: clientIp
+        });
+        return res.status(403).json({
+          error: 'Your account has been deactivated. Please contact your system administrator.'
+        });
+      }
+
+      // If user is locally password-managed (not managed purely via Supabase OAuth/Auth)
+      if (candidate.password_hash !== 'SUPABASE_AUTH_MANAGED' && candidate.password_hash !== 'AUTH_MANAGED') {
+        const passwordMatch = await comparePassword(password, candidate.password_hash);
+        if (passwordMatch) {
+          authenticatedUser = candidate;
+          // Auto-upgrade legacy hash if needed
+          if (!candidate.password_hash.startsWith('$2')) {
+            const upgradedHash = await hashPassword(password);
+            await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [upgradedHash, candidate.id]);
+          }
+        }
+      }
+    }
+
+    // 2. Check if it's the configured initial admin attempting login before first DB bootstrap
+    if (!authenticatedUser) {
       const initialAdminUser = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
       const initialAdminPass = process.env.INITIAL_ADMIN_PASSWORD;
       const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
 
-      // If user not found, check if it's the configured initial admin trying to connect before DB bootstrap finishes
       if (initialAdminPass && trimmedUsername === initialAdminUser && password === initialAdminPass) {
         const adminHash = await hashPassword(initialAdminPass);
         const existingAdmin = await pool.query("SELECT id FROM users WHERE id = 'usr_admin_01' OR LOWER(username) = $1 LIMIT 1", [initialAdminUser]);
@@ -65,80 +96,90 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
             VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, FALSE, 1)
           `, [initialAdminUser, adminHash, initialAdminName]);
         }
-        result = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', [initialAdminUser]);
-      } else {
-        await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
-          targetUsername: trimmedUsername,
-          details: 'User not found in system',
-          ipAddress: clientIp
-        });
-        return res.status(401).json({ error: 'Invalid username or password.' });
+        const adminRes = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', [initialAdminUser]);
+        authenticatedUser = adminRes.rows[0];
       }
     }
 
-    const user = result.rows[0];
+    // 3. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
+    if (!authenticatedUser) {
+      const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+      const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-    // Check account active status
-    if (!user.is_active) {
-      await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
-        targetUserId: user.id,
-        targetUsername: user.username,
-        details: 'Login rejected: account is deactivated',
-        ipAddress: clientIp
-      });
-      return res.status(403).json({
-        error: 'Your account has been deactivated. Please contact your system administrator.'
-      });
+      if (rawSupabaseUrl && rawAnonKey && (trimmedUsername.includes('@') || String(username).includes('@'))) {
+        try {
+          const authEndpoint = `${rawSupabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`;
+          const supabaseAuthRes = await fetch(authEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': rawAnonKey
+            },
+            body: JSON.stringify({
+              email: trimmedUsername,
+              password
+            })
+          });
+
+          if (supabaseAuthRes.ok) {
+            const data: any = await supabaseAuthRes.json();
+            if (data && data.user) {
+              const synced = await syncOrGetSupabaseProfile({
+                id: data.user.id,
+                email: data.user.email,
+                fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
+                role: data.user.user_metadata?.role,
+                userMetadata: data.user.user_metadata
+              });
+              authenticatedUser = synced;
+            }
+          }
+        } catch (supabaseErr) {
+          console.warn('[AUTH] Supabase server authentication attempt exception:', supabaseErr);
+        }
+      }
     }
 
-    // Secure password comparison via bcrypt
-    const passwordMatch = await comparePassword(password, user.password_hash);
-
-    if (!passwordMatch) {
+    if (!authenticatedUser) {
       await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
-        targetUserId: user.id,
-        targetUsername: user.username,
-        details: 'Invalid password provided',
+        targetUsername: trimmedUsername,
+        details: 'Invalid username or password',
         ipAddress: clientIp
       });
-      return res.status(401).json({ error: 'Invalid username or password.' });
-    }
-
-    // Auto-upgrade legacy hash if needed
-    if (!user.password_hash.startsWith('$2')) {
-      const upgradedHash = await hashPassword(password);
-      await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [upgradedHash, user.id]);
+      return res.status(401).json({
+        error: 'Invalid username or password. Please verify your credentials or check your Supabase Auth dashboard.'
+      });
     }
 
     // Record last login timestamp
-    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [authenticatedUser.id]).catch(() => {});
 
     const userPayload = {
-      id: user.id,
-      username: user.username,
-      fullName: user.full_name || user.username,
-      role: user.role || 'GUEST',
-      isActive: Boolean(user.is_active),
-      mustChangePassword: Boolean(user.must_change_password),
-      tokenVersion: user.token_version || 1
+      id: authenticatedUser.id,
+      username: authenticatedUser.username,
+      fullName: authenticatedUser.full_name || authenticatedUser.fullName || authenticatedUser.username,
+      role: authenticatedUser.role || 'GUEST',
+      isActive: authenticatedUser.is_active !== undefined ? Boolean(authenticatedUser.is_active) : Boolean(authenticatedUser.isActive),
+      mustChangePassword: authenticatedUser.must_change_password !== undefined ? Boolean(authenticatedUser.must_change_password) : Boolean(authenticatedUser.mustChangePassword),
+      tokenVersion: authenticatedUser.token_version || authenticatedUser.tokenVersion || 1
     };
 
     await recordSecurityAudit(pool, 'LOGIN_SUCCESS', {
-      actorId: user.id,
-      actorUsername: user.username,
-      details: `Successful login as ${user.role} (mustChangePassword: ${user.must_change_password})`,
+      actorId: userPayload.id,
+      actorUsername: userPayload.username,
+      details: `Successful login as ${userPayload.role} (mustChangePassword: ${userPayload.mustChangePassword})`,
       ipAddress: clientIp
     });
 
     await recordActivityLog(pool, {
       eventType: 'LOGIN_SUCCESS',
       module: 'AUTHENTICATION',
-      actorId: user.id,
-      actorUsername: user.username,
-      actorName: user.full_name || user.username,
-      actorRole: user.role,
-      actionSummary: `User "${user.username}" logged in successfully as ${user.role}`,
-      details: `Role: ${user.role} | First Login Flag: ${user.must_change_password}`,
+      actorId: userPayload.id,
+      actorUsername: userPayload.username,
+      actorName: userPayload.fullName,
+      actorRole: userPayload.role,
+      actionSummary: `User "${userPayload.username}" logged in successfully as ${userPayload.role}`,
+      details: `Role: ${userPayload.role} | First Login Flag: ${userPayload.mustChangePassword}`,
       ipAddress: clientIp
     });
 
@@ -165,6 +206,84 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
   } catch (error: any) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Authentication server error.' });
+  }
+});
+
+// POST /api/auth/supabase-sync - Synchronize and retrieve user profile after Supabase Auth login
+router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
+  const clientIp = getClientIp(req);
+  try {
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const accessToken = req.body?.accessToken || bearerToken;
+    const passedUser = req.body?.user;
+
+    let userId = passedUser?.id;
+    let userEmail = passedUser?.email;
+    let userMetadata = passedUser?.user_metadata || {};
+    let fullName = userMetadata?.full_name || userMetadata?.name || passedUser?.fullName;
+
+    if (!userId && accessToken) {
+      const decoded: any = jwt.decode(accessToken);
+      if (decoded) {
+        userId = decoded.sub || decoded.userId || decoded.id;
+        userEmail = decoded.email || decoded.username || userEmail;
+        userMetadata = decoded.user_metadata || userMetadata;
+        fullName = fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name || decoded.fullName;
+      }
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unable to synchronize Supabase user: missing user identifier or token.'
+      });
+    }
+
+    const profile = await syncOrGetSupabaseProfile({
+      id: userId,
+      email: userEmail,
+      fullName: fullName,
+      role: userMetadata?.role,
+      userMetadata: userMetadata
+    });
+
+    if (profile.isActive === false) {
+      return res.status(403).json({
+        error: 'Your account has been deactivated. Please contact your system administrator.'
+      });
+    }
+
+    // Generate internal app session token
+    const token = generateAuthToken({
+      id: profile.id,
+      username: profile.username,
+      role: profile.role,
+      fullName: profile.fullName,
+      tokenVersion: profile.tokenVersion
+    });
+
+    await recordSecurityAudit(pool, 'LOGIN_SUCCESS', {
+      actorId: profile.id,
+      actorUsername: profile.username,
+      details: `Supabase authenticated user profile synced: ${profile.role}`,
+      ipAddress: clientIp
+    });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: profile.id,
+        username: profile.username,
+        fullName: profile.fullName,
+        role: profile.role,
+        isActive: profile.isActive,
+        mustChangePassword: profile.mustChangePassword
+      }
+    });
+  } catch (error: any) {
+    console.error('Supabase profile sync error:', error);
+    res.status(500).json({ error: 'Failed to synchronize Supabase user profile.' });
   }
 });
 

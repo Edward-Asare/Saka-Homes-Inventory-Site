@@ -154,16 +154,16 @@ export default function App() {
     try {
       sessionStorage.removeItem('saka_explicit_logout');
       let user: AppUser;
-      if (supabase && isSupabaseConfigured) {
+      if (supabase && isSupabaseConfigured && usernameInput.includes('@') && !usernameInput.toLowerCase().endsWith('@sakainventory')) {
         try {
           user = await authService.loginWithSupabase(usernameInput, passwordInput);
         } catch (supabaseErr: any) {
-          // If Supabase Auth rejects (e.g., default accounts or local database accounts), attempt system backend login
-          try {
-            user = await authService.login(usernameInput, passwordInput);
-          } catch {
+          const lower = (supabaseErr.message || '').toLowerCase();
+          if (lower.includes('email not confirmed') || lower.includes('invalid login credentials')) {
             throw supabaseErr;
           }
+          // Try local database login if Supabase auth threw connection error
+          user = await authService.login(usernameInput, passwordInput);
         }
       } else {
         user = await authService.login(usernameInput, passwordInput);

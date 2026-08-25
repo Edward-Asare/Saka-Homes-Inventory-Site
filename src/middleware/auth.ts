@@ -139,35 +139,19 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     const userId = decoded.sub || decoded.userId || decoded.id;
-    const usernameOrEmail = (decoded.username || decoded.email || decoded.user_metadata?.email || '').toLowerCase();
+    const usernameOrEmail = (decoded.username || decoded.email || decoded.user_metadata?.email || '').toLowerCase().trim();
+    const fullName = decoded.fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name;
+    const role = decoded.role || decoded.user_metadata?.role;
 
-    // Verify against database for RBAC role mapping and active status
-    const userDbResult = await pool.query(
-      'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 OR (username != \'\' AND LOWER(username) = $2)',
-      [userId, usernameOrEmail]
-    );
+    const dbUser = await syncOrGetSupabaseProfile({
+      id: String(userId),
+      email: usernameOrEmail,
+      fullName,
+      role,
+      userMetadata: decoded.user_metadata
+    });
 
-    let dbUser;
-
-    if (userDbResult.rows.length === 0) {
-      // Auto-provision user in local RBAC directory on first authenticated access if needed
-      const defaultRole: UserRole = (decoded.role || decoded.user_metadata?.role as UserRole) || 'GUEST';
-      const fullName = decoded.fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name || (usernameOrEmail ? usernameOrEmail.split('@')[0] : 'User');
-      const assignedUsername = usernameOrEmail || `user_${String(userId).slice(0, 8)}`;
-
-      const newRecord = await pool.query(`
-        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-        VALUES ($1, $2, 'AUTH_MANAGED', $3, $4, TRUE, FALSE, 1)
-        ON CONFLICT (id) DO UPDATE SET is_active = TRUE, full_name = EXCLUDED.full_name
-        RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
-      `, [userId, assignedUsername, defaultRole, fullName]);
-
-      dbUser = newRecord.rows[0];
-    } else {
-      dbUser = userDbResult.rows[0];
-    }
-
-    if (!dbUser.is_active) {
+    if (!dbUser.isActive) {
       return res.status(403).json({
         error: 'Your account has been deactivated. Please contact your system administrator.'
       });
@@ -177,10 +161,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.user = {
       id: dbUser.id,
       username: dbUser.username,
-      fullName: dbUser.full_name || dbUser.username,
+      fullName: dbUser.fullName,
       role: dbUser.role as UserRole,
-      mustChangePassword: Boolean(dbUser.must_change_password),
-      tokenVersion: dbUser.token_version
+      mustChangePassword: Boolean(dbUser.mustChangePassword),
+      tokenVersion: dbUser.tokenVersion
     };
 
     next();
@@ -194,6 +178,81 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       error: 'Authentication failed: ' + (err.message || 'Unknown error')
     });
   }
+}
+
+/**
+ * Safely retrieve or auto-provision user record in PostgreSQL database.
+ * Handles both Supabase Auth UUIDs and local accounts without unique collision errors.
+ */
+export async function syncOrGetSupabaseProfile(userPayload: {
+  id: string;
+  email?: string;
+  username?: string;
+  fullName?: string;
+  role?: UserRole;
+  userMetadata?: any;
+}): Promise<AuthUserPayload & { isActive: boolean }> {
+  const userId = String(userPayload.id).trim();
+  const usernameOrEmail = (userPayload.email || userPayload.username || userPayload.userMetadata?.email || '').toLowerCase().trim();
+  const metaFullName = userPayload.fullName || userPayload.userMetadata?.full_name || userPayload.userMetadata?.name || (usernameOrEmail ? usernameOrEmail.split('@')[0] : 'User');
+  const metaRole: UserRole = (userPayload.role || userPayload.userMetadata?.role as UserRole) || 'MANAGER';
+
+  // 1. Search existing record by ID or Username
+  const userDbResult = await pool.query(
+    'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 OR (username != \'\' AND LOWER(username) = $2) LIMIT 1',
+    [userId, usernameOrEmail]
+  );
+
+  let dbUser;
+
+  if (userDbResult.rows.length > 0) {
+    dbUser = userDbResult.rows[0];
+    
+    // Update last_login_at timestamp
+    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [dbUser.id]).catch(() => {});
+  } else {
+    // 2. Provision new user in database
+    const assignedUsername = usernameOrEmail || `user_${userId.slice(0, 8)}`;
+
+    // If first user, make ADMIN, otherwise default to metaRole
+    const countRes = await pool.query("SELECT COUNT(*) as count FROM users WHERE role = 'ADMIN'");
+    const adminCount = parseInt(countRes.rows[0]?.count || '0', 10);
+    const assignedRole: UserRole = adminCount === 0 ? 'ADMIN' : metaRole;
+
+    try {
+      const insertRes = await pool.query(`
+        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at)
+        VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO UPDATE SET 
+          full_name = EXCLUDED.full_name,
+          last_login_at = CURRENT_TIMESTAMP
+        RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
+      `, [userId, assignedUsername, assignedRole, metaFullName]);
+
+      dbUser = insertRes.rows[0];
+    } catch (insertErr) {
+      // Fallback query if conflict happened on username
+      const fallbackQuery = await pool.query(
+        'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 OR LOWER(username) = $2 LIMIT 1',
+        [userId, assignedUsername]
+      );
+      if (fallbackQuery.rows.length > 0) {
+        dbUser = fallbackQuery.rows[0];
+      } else {
+        throw insertErr;
+      }
+    }
+  }
+
+  return {
+    id: dbUser.id,
+    username: dbUser.username,
+    fullName: dbUser.full_name || dbUser.username,
+    role: dbUser.role as UserRole,
+    isActive: Boolean(dbUser.is_active),
+    mustChangePassword: Boolean(dbUser.must_change_password),
+    tokenVersion: dbUser.token_version || 1
+  };
 }
 
 /**

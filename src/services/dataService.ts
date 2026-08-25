@@ -21,9 +21,25 @@ export function getStoredUser(): AppUser | null {
 
 export const authService = {
   login: async (username: string, password: string): Promise<AppUser> => {
+    const trimmed = username.trim();
+
+    // If Supabase is configured and the user entered an email, try Supabase Auth first
+    if (supabase && isSupabaseConfigured && trimmed.includes('@') && !trimmed.endsWith('@sakainventory')) {
+      try {
+        return await authService.loginWithSupabase(trimmed, password);
+      } catch (supabaseErr: any) {
+        const msg = (supabaseErr.message || '').toLowerCase();
+        // If Supabase Auth gave an explicit failure like email unconfirmed or bad password, don't silently swallow
+        if (msg.includes('email not confirmed')) {
+          throw supabaseErr;
+        }
+        // If credentials failed on Supabase, still attempt fallback to local database
+      }
+    }
+
     const res = await fetchApi<{ success: boolean; token: string; user: AppUser }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username: trimmed, password }),
     });
     
     if (res.token) {
@@ -82,17 +98,17 @@ export const authService = {
 
   loginWithSupabase: async (email: string, password: string): Promise<AppUser> => {
     if (!supabase || !isSupabaseConfigured) {
-      throw new Error('Supabase is not configured yet. Please configure valid VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Settings.');
+      throw new Error('Supabase is not configured yet. Please configure valid VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Settings or .env file.');
     }
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
         const lowerMsg = (error.message || '').toLowerCase();
         if (lowerMsg.includes('invalid login credentials')) {
           throw new Error('Invalid login credentials. Please verify your email and password, and ensure this user exists in your Supabase Authentication dashboard.');
         }
         if (lowerMsg.includes('email not confirmed')) {
-          throw new Error('Email not confirmed in Supabase. Please confirm your email address or disable "Confirm email" in Supabase Authentication -> Providers -> Email.');
+          throw new Error('Email not confirmed in Supabase. Please confirm your email address or disable "Confirm email" in your Supabase Authentication dashboard (Authentication -> Providers -> Email).');
         }
         throw new Error(error.message || 'Supabase authentication failed.');
       }
@@ -103,8 +119,19 @@ export const authService = {
       const token = data.session.access_token;
       localStorage.setItem('saka_auth_token', token);
 
-      // Verify session with backend to register/sync local RBAC profile
-      const user = await fetchApi<AppUser>('/api/auth/me');
+      // Synchronize session with backend to register/retrieve local PostgreSQL profile
+      const syncRes = await fetchApi<{ success: boolean; user: AppUser; token?: string }>('/api/auth/supabase-sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          accessToken: token,
+          user: data.user
+        })
+      });
+
+      const user = syncRes.user;
+      if (syncRes.token) {
+        localStorage.setItem('saka_auth_token', syncRes.token);
+      }
       localStorage.setItem('saka_app_user', JSON.stringify(user));
       return user;
     } catch (err: any) {
@@ -187,16 +214,22 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     if (contentType && contentType.includes('application/json')) {
       try {
         const errData = await res.json();
-        errMsg = errData.error || errMsg;
+        errMsg = errData.error || errData.message || errMsg;
       } catch {}
     } else {
       const text = await res.text();
       errMsg = `Server error (${res.status}): ${text.substring(0, 100)}`;
     }
 
-    if (res.status === 401 && endpoint !== '/api/auth/login') {
-      authService.logout();
-      window.dispatchEvent(new CustomEvent('saka:auth_expired', { detail: { message: errMsg } }));
+    if (res.status === 401) {
+      if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync') {
+        errMsg = errMsg || 'Unauthorized (401): Invalid username or password. If you created this user in your Supabase Dashboard, please check your credentials and ensure the user email is verified.';
+      } else {
+        authService.logout();
+        const sessionErrMsg = errMsg || 'Session expired or unauthorized (401). Please sign in again.';
+        window.dispatchEvent(new CustomEvent('saka:auth_expired', { detail: { message: sessionErrMsg } }));
+        throw new Error(sessionErrMsg);
+      }
     } else if (res.status === 403) {
       window.dispatchEvent(new CustomEvent('saka:access_denied', { detail: { message: errMsg } }));
     }
