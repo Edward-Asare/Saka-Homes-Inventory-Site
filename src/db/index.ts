@@ -1,4 +1,5 @@
-import pg from 'pg';
+import 'dotenv/config';
+import pg, { PoolConfig } from 'pg';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -159,33 +160,52 @@ export async function recordActivityLog(
   }
 }
 
-function getConnectionString(): string | undefined {
-  let url = process.env.DATABASE_URL?.trim();
-  if (!url) {
-    return undefined;
+function buildPoolConfig(): PoolConfig {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+
+  if (databaseUrl) {
+    let url = databaseUrl;
+    // Supabase session pooler on 5432 has a hard 15 connection ceiling. Convert pooler 5432 to 6543 transaction mode.
+    if (url.includes('pooler.supabase.com:5432')) {
+      url = url.replace(':5432', ':6543');
+    }
+
+    const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
+    const isRemote = !isLocalhost || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+
+    return {
+      connectionString: url,
+      ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+      max: 10,
+      idleTimeoutMillis: 15000,
+      connectionTimeoutMillis: 10000,
+    };
   }
-  // Supabase session pooler on 5432 has a hard 15 connection ceiling. Convert pooler 5432 to 6543 transaction mode.
-  if (url.includes('pooler.supabase.com:5432')) {
-    url = url.replace(':5432', ':6543');
-  }
-  return url;
+
+  // Fallback parameters if DATABASE_URL is not provided directly
+  const host = process.env.PGHOST || 'localhost';
+  const port = process.env.PGPORT ? parseInt(process.env.PGPORT, 10) : 5432;
+  const user = process.env.PGUSER || 'postgres';
+  const password = process.env.PGPASSWORD || undefined;
+  const database = process.env.PGDATABASE || 'postgres';
+
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const isRemote = (!isLocalhost && Boolean(process.env.PGHOST)) || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+
+  return {
+    host,
+    port,
+    user,
+    password,
+    database,
+    ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+    max: 10,
+    idleTimeoutMillis: 15000,
+    connectionTimeoutMillis: 10000,
+  };
 }
 
-const connectionString = getConnectionString();
-
-export const pool = new Pool(connectionString ? {
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 5,
-  idleTimeoutMillis: 15000,
-  connectionTimeoutMillis: 10000,
-} : {
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+export const pool = new Pool(buildPoolConfig());
 
 // Guard against uncaughtException crashes when idle clients disconnect from the pool
 pool.on('error', (err) => {
