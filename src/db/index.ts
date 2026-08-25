@@ -159,8 +159,11 @@ export async function recordActivityLog(
   }
 }
 
-function getConnectionString(): string {
-  let url = process.env.DATABASE_URL || 'postgresql://postgres.wzidqknszwapjoeylimg:VE3KHEAddBcjoryk@aws-1-eu-west-1.pooler.supabase.com:6543/postgres';
+function getConnectionString(): string | undefined {
+  let url = process.env.DATABASE_URL?.trim();
+  if (!url) {
+    return undefined;
+  }
   // Supabase session pooler on 5432 has a hard 15 connection ceiling. Convert pooler 5432 to 6543 transaction mode.
   if (url.includes('pooler.supabase.com:5432')) {
     url = url.replace(':5432', ':6543');
@@ -168,14 +171,20 @@ function getConnectionString(): string {
   return url;
 }
 
-export const pool = new Pool({
-  connectionString: getConnectionString(),
+const connectionString = getConnectionString();
+
+export const pool = new Pool(connectionString ? {
+  connectionString,
   ssl: {
     rejectUnauthorized: false
   },
   max: 5,
   idleTimeoutMillis: 15000,
   connectionTimeoutMillis: 10000,
+} : {
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Guard against uncaughtException crashes when idle clients disconnect from the pool
@@ -234,9 +243,10 @@ export async function initializeDatabase() {
     const initialAdminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
     const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
     const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
+    const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD || 'guest123';
 
     const adminHash = await hashPassword(initialAdminPassword);
-    const guestHash = await hashPassword('guest123');
+    const guestHash = await hashPassword(initialGuestPassword);
 
     const defaultAccounts = [
       { id: 'usr_admin_01', username: initialAdminUsername, hash: adminHash, role: 'ADMIN', name: initialAdminName },

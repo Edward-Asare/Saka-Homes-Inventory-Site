@@ -1,12 +1,24 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../types';
 import { pool } from '../db/index';
 
-// Helper to get or fallback to application JWT Secret
+let runtimeEphemeralSecret: string | null = null;
+
+// Helper to get application JWT Secret strictly from environment variables
 export function getJwtSecret(): string {
-  const raw = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || 'saka_inventory_jwt_secret_key_production_2026_super_secure';
-  return raw.trim().replace(/^["']|["']$/g, '');
+  const raw = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+  if (raw && raw.trim() !== '') {
+    return raw.trim().replace(/^["']|["']$/g, '');
+  }
+
+  // Fallback to ephemeral in-memory cryptographic secret if no environment secret is set
+  if (!runtimeEphemeralSecret) {
+    runtimeEphemeralSecret = crypto.randomBytes(32).toString('hex');
+    console.warn('[SECURITY] No JWT_SECRET or SUPABASE_JWT_SECRET configured in environment. Generated an ephemeral runtime in-memory secret.');
+  }
+  return runtimeEphemeralSecret;
 }
 
 /**

@@ -46,22 +46,26 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
     );
 
     if (result.rows.length === 0) {
-      // If user not found, check if it's the standard default admin trying to connect before DB bootstrap finishes
-      if (trimmedUsername === 'admin@sakainventory' && password === 'admin123') {
-        const adminHash = await hashPassword('admin123');
-        const existingAdmin = await pool.query("SELECT id FROM users WHERE id = 'usr_admin_01' OR LOWER(username) = 'admin@sakainventory' LIMIT 1");
+      const initialAdminUser = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
+      const initialAdminPass = process.env.INITIAL_ADMIN_PASSWORD;
+      const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
+
+      // If user not found, check if it's the configured initial admin trying to connect before DB bootstrap finishes
+      if (initialAdminPass && trimmedUsername === initialAdminUser && password === initialAdminPass) {
+        const adminHash = await hashPassword(initialAdminPass);
+        const existingAdmin = await pool.query("SELECT id FROM users WHERE id = 'usr_admin_01' OR LOWER(username) = $1 LIMIT 1", [initialAdminUser]);
         if (existingAdmin.rows.length > 0) {
           await pool.query(`
-            UPDATE users SET username = 'admin@sakainventory', password_hash = $1, is_active = TRUE, role = 'ADMIN'
-            WHERE id = $2
-          `, [adminHash, existingAdmin.rows[0].id]);
+            UPDATE users SET username = $1, password_hash = $2, is_active = TRUE, role = 'ADMIN'
+            WHERE id = $3
+          `, [initialAdminUser, adminHash, existingAdmin.rows[0].id]);
         } else {
           await pool.query(`
             INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-            VALUES ('usr_admin_01', 'admin@sakainventory', $1, 'ADMIN', 'System Administrator', TRUE, FALSE, 1)
-          `, [adminHash]);
+            VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, FALSE, 1)
+          `, [initialAdminUser, adminHash, initialAdminName]);
         }
-        result = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', ['admin@sakainventory']);
+        result = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', [initialAdminUser]);
       } else {
         await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
           targetUsername: trimmedUsername,
@@ -88,19 +92,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
     }
 
     // Secure password comparison via bcrypt
-    let passwordMatch = await comparePassword(password, user.password_hash);
-
-    // Fallback for default accounts in case DB had old seed
-    if (!passwordMatch) {
-      if (
-        (user.username === 'admin@sakainventory' || user.username === 'admin') && password === 'admin123' ||
-        (user.username === 'guest@sakainventory' || user.username === 'guest' || user.username === 'viewer@sakainventory' || user.username === 'viewer') && (password === 'guest123' || password === 'viewer123')
-      ) {
-        passwordMatch = true;
-        const freshHash = await hashPassword(password);
-        await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [freshHash, user.id]);
-      }
-    }
+    const passwordMatch = await comparePassword(password, user.password_hash);
 
     if (!passwordMatch) {
       await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
