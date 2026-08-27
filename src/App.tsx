@@ -432,7 +432,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#FAF8F5] text-[#1E1B4B] font-sans antialiased">
+    <div className="flex h-screen w-full overflow-hidden bg-[#FAF8F5] text-[#1E1B4B] font-sans antialiased">
       {/* Sidebar Mobile Toggle Floating Button */}
       {!sidebarOpen && (
         <button 
@@ -461,7 +461,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: -320 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed lg:sticky top-0 left-0 z-50 lg:z-40 w-72 h-[100dvh] max-h-[100dvh] lg:h-screen lg:max-h-screen bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl overflow-hidden"
+              className="fixed lg:static top-0 left-0 z-50 lg:z-auto w-72 h-[100dvh] max-h-[100dvh] lg:h-full lg:max-h-full bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl overflow-hidden shrink-0"
             >
               {/* Header Branding */}
               <div className="p-5 pb-4 flex items-center justify-between border-b border-purple-900/40 bg-[#120E2B] shrink-0">
@@ -557,7 +557,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* Glassmorphic Top Bar */}
         <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-amber-900/10 px-3 sm:px-6 py-3 sm:py-4 print:hidden shadow-2xs">
           <div className="flex items-center justify-between gap-2 sm:gap-4">

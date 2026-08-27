@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -10,7 +15,6 @@
   body {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
-    width: 100%;
     min-width: 100%;
   }
   
