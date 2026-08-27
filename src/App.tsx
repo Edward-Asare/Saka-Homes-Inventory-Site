@@ -461,7 +461,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: -320 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed lg:sticky top-0 left-0 z-50 lg:z-40 w-72 h-[100dvh] max-h-[100dvh] bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl overflow-hidden"
+              className="fixed lg:sticky top-0 left-0 z-50 lg:z-40 w-72 h-[100dvh] max-h-[100dvh] lg:h-screen lg:max-h-screen bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl overflow-hidden"
             >
               {/* Header Branding */}
               <div className="p-5 pb-4 flex items-center justify-between border-b border-purple-900/40 bg-[#120E2B] shrink-0">
@@ -486,7 +486,7 @@ export default function App() {
               </div>
 
               {/* Navigation Items */}
-              <nav className="flex-1 px-3 space-y-1.5 py-2 overflow-y-auto min-h-0 overscroll-contain">
+              <nav className="flex-1 px-3 space-y-1.5 py-2 lg:py-3 overflow-y-auto min-h-0 overscroll-contain">
                 <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-purple-400/70 mb-1">Navigation</p>
                 {navItems.map((item) => {
                   const Icon = item.icon;
@@ -515,8 +515,8 @@ export default function App() {
                 })}
               </nav>
 
-              {/* Sidebar Footer User Card with Safe Area Inset Support */}
-              <div className="p-3.5 sm:p-4 border-t border-purple-900/40 bg-[#120E2B] shrink-0 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))]">
+              {/* Sidebar Footer User Card with Safe Area Inset Support on Mobile and Tight Padding on Laptop */}
+              <div className="p-3.5 sm:p-4 border-t border-purple-900/40 bg-[#120E2B] shrink-0 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] lg:pb-4">
                 <div className="bg-[#211A48] border border-purple-800/40 rounded-2xl p-3 space-y-2.5 shadow-inner">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm shrink-0">
