@@ -451,10 +451,10 @@ export default function App() {
             animate={{ x: 0 }}
             exit={{ x: -320 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed lg:sticky top-0 left-0 z-40 w-72 h-screen bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl"
+            className="fixed lg:sticky top-0 left-0 z-40 w-72 h-[100dvh] max-h-[100dvh] bg-[#181335] text-purple-100 border-r border-purple-950/60 flex flex-col print:hidden shadow-2xl overflow-hidden"
           >
             {/* Header Branding */}
-            <div className="p-5 pb-4 flex items-center justify-between border-b border-purple-900/40 bg-[#120E2B]">
+            <div className="p-5 pb-4 shrink-0 flex items-center justify-between border-b border-purple-900/40 bg-[#120E2B]">
               <SakaHomesLogo variant="white" size="md" showSubtitle />
               <button 
                 onClick={() => setSidebarOpen(false)} 
@@ -465,7 +465,7 @@ export default function App() {
             </div>
 
             {/* Warehouse Location Pill */}
-            <div className="px-5 py-3.5">
+            <div className="px-5 py-3 shrink-0">
               <div className="bg-purple-950/60 border border-purple-800/40 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs text-purple-200">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-[#E54818] animate-pulse" />
@@ -476,7 +476,7 @@ export default function App() {
             </div>
 
             {/* Navigation Items */}
-            <nav className="flex-1 px-3 space-y-1.5 py-3 overflow-y-auto">
+            <nav className="flex-1 min-h-0 px-3 space-y-1.5 py-2 overflow-y-auto overscroll-contain">
               <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-purple-400/70 mb-1">Navigation</p>
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -486,7 +486,7 @@ export default function App() {
                     key={item.id}
                     onClick={() => handleNavigate(item.id)}
                     className={cn(
-                      "w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-xs font-semibold transition-all group relative",
+                      "w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all group relative",
                       isActive 
                         ? "bg-gradient-to-r from-[#E54818] to-[#C83A0F] text-white shadow-lg shadow-orange-950/40" 
                         : "text-purple-200/70 hover:bg-purple-900/30 hover:text-white"
@@ -506,10 +506,10 @@ export default function App() {
             </nav>
 
             {/* Sidebar Footer User Card */}
-            <div className="p-4 border-t border-purple-900/40 bg-[#120E2B]">
-              <div className="bg-[#211A48] border border-purple-800/40 rounded-2xl p-3 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm">
+            <div className="p-3.5 shrink-0 border-t border-purple-900/40 bg-[#120E2B] pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+              <div className="bg-[#211A48] border border-purple-800/40 rounded-2xl p-3 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm">
                     {appUser.username[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -532,11 +532,12 @@ export default function App() {
                   </div>
                 </div>
                 <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-purple-950/60 border border-purple-800/50 rounded-xl text-xs font-bold text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/30 transition-all"
+                  id="sidebar-signout-btn"
+                  onClick={() => handleLogout(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-rose-500/15 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-600 rounded-xl text-xs font-bold text-rose-200 hover:text-white transition-all shadow-xs active:scale-[0.98]"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
+                  <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white" />
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>
@@ -586,6 +587,17 @@ export default function App() {
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden xs:inline sm:inline">New Item</span>
+              </button>
+
+              {/* Quick Header Sign Out Button */}
+              <button 
+                id="header-signout-btn"
+                onClick={() => handleLogout(true)}
+                title={`Sign out (${appUser.fullName})`}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 text-rose-700 hover:text-rose-800 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 ml-1"
+              >
+                <LogOut className="w-4 h-4 text-rose-600" />
+                <span className="hidden md:inline font-bold">Sign Out</span>
               </button>
             </div>
           </div>
