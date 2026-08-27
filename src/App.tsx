@@ -23,7 +23,8 @@ import {
   Mail,
   Users,
   History,
-  MessageSquare
+  MessageSquare,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dashboard from './views/Dashboard';
@@ -36,6 +37,8 @@ import UserManagement from './views/UserManagement';
 import ActivityLogs from './views/ActivityLogs';
 import GuestOrders from './views/GuestOrders';
 import ForcedChangePasswordModal from './components/ForcedChangePasswordModal';
+import InactivityTimeoutModal from './components/InactivityTimeoutModal';
+import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { View, AppUser } from './types';
 import { authService } from './services/dataService';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -184,12 +187,27 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (isManual = true) => {
     sessionStorage.setItem('saka_explicit_logout', 'true');
     authService.logout();
     setAppUser(null);
     handleNavigate('dashboard');
+    if (!isManual) {
+      setAuthError('You have been logged out due to inactivity for security reasons. Please sign in to resume.');
+    }
   };
+
+  const handleInactivityLogout = React.useCallback(() => {
+    handleLogout(false);
+  }, []);
+
+  // 15 minutes of inactivity threshold with 60-second warning countdown modal
+  const { isWarning: isInactivityWarning, remainingSeconds: inactivitySeconds, resetTimer: resetInactivityTimer } = useInactivityTimeout({
+    timeoutMs: 15 * 60 * 1000,
+    warningMs: 60 * 1000,
+    onTimeout: handleInactivityLogout,
+    enabled: Boolean(appUser)
+  });
 
   const handleGlobalAdd = () => {
     if (appUser?.role !== 'ADMIN' && appUser?.role !== 'MANAGER') {
@@ -383,10 +401,26 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-rose-700 text-xs text-left flex items-start gap-2"
+                  className={cn(
+                    "p-4 rounded-xl text-xs text-left flex items-start gap-2.5 border",
+                    authError.includes('inactivity') 
+                      ? "bg-amber-50 border-amber-200 text-amber-900" 
+                      : "bg-rose-50 border-rose-200 text-rose-700"
+                  )}
                 >
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-                  <p>{authError}</p>
+                  {authError.includes('inactivity') ? (
+                    <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  )}
+                  <div className="space-y-0.5">
+                    {authError.includes('inactivity') && (
+                      <p className="font-extrabold text-[11px] uppercase tracking-wider text-amber-800">
+                        Session Inactivity Timeout
+                      </p>
+                    )}
+                    <p className="leading-relaxed">{authError}</p>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -643,6 +677,14 @@ export default function App() {
         isOpen={accessDeniedModalOpen}
         onClose={() => setAccessDeniedModalOpen(false)}
         actionName={accessDeniedAction}
+      />
+
+      {/* Inactivity Security Timeout Warning Modal */}
+      <InactivityTimeoutModal
+        isOpen={isInactivityWarning}
+        remainingSeconds={inactivitySeconds}
+        onStayLoggedIn={resetInactivityTimer}
+        onLogout={() => handleLogout(true)}
       />
     </div>
   );
