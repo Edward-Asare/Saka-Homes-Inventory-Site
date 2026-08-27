@@ -310,7 +310,7 @@ export default function App() {
         </div>
 
         {/* Right Column - Unified Credentials Login Card with Subtle Architectural Watermark */}
-        <div className="w-full lg:w-5/12 flex items-center justify-center p-6 sm:p-12 bg-[#FAF8F5] min-h-screen relative">
+        <div className="w-full lg:w-5/12 flex items-center justify-center p-4 sm:p-8 lg:p-12 bg-[#FAF8F5] min-h-screen relative">
           {/* Subtle Watermark on background */}
           <div 
             className="absolute inset-0 bg-cover bg-center opacity-[0.035] pointer-events-none"
@@ -319,7 +319,7 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl shadow-slate-950/5 p-8 sm:p-10 space-y-8 border border-slate-200/80 relative z-10"
+            className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl shadow-slate-950/5 p-6 sm:p-10 space-y-6 sm:space-y-8 border border-slate-200/80 relative z-10"
           >
             <div className="space-y-4 flex flex-col items-center text-center">
               <div className="p-4 bg-[#FAF8F5] rounded-3xl border border-amber-900/10 shadow-2xs">
@@ -547,13 +547,13 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Glassmorphic Top Bar */}
-        <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-amber-900/10 px-6 py-4 print:hidden shadow-2xs">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 flex items-center gap-3">
+        <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-amber-900/10 px-3 sm:px-6 py-3 sm:py-4 print:hidden shadow-2xs">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex-1 flex items-center gap-2 sm:gap-3">
               {!sidebarOpen && (
                 <button 
                   onClick={() => setSidebarOpen(true)} 
-                  className="p-2 hover:bg-slate-200/60 rounded-xl transition-colors text-slate-700"
+                  className="p-2 hover:bg-slate-200/60 rounded-xl transition-colors text-slate-700 shrink-0"
                 >
                   <Menu className="w-5 h-5" />
                 </button>
@@ -563,36 +563,36 @@ export default function App() {
                 <input 
                   type="text"
                   placeholder="Search materials, PO numbers, site dispatches..."
-                  className="w-full bg-white hover:bg-white focus:bg-white border border-amber-900/15 rounded-xl pl-10 pr-12 py-2.5 text-xs font-semibold text-[#1E1B4B] outline-none focus:border-[#E54818] focus:ring-4 focus:ring-[#E54818]/10 transition-all placeholder:text-slate-400"
+                  className="w-full bg-white hover:bg-white focus:bg-white border border-amber-900/15 rounded-xl pl-9 sm:pl-10 pr-4 sm:pr-12 py-2 sm:py-2.5 text-xs font-semibold text-[#1E1B4B] outline-none focus:border-[#E54818] focus:ring-4 focus:ring-[#E54818]/10 transition-all placeholder:text-slate-400"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </div>
             
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               <button 
                 onClick={handleNotificationClick}
-                className="relative p-2.5 rounded-xl border border-amber-900/15 bg-white text-slate-700 hover:border-[#E54818]/40 hover:text-[#E54818] transition-all shadow-2xs"
+                className="relative p-2 sm:p-2.5 rounded-xl border border-amber-900/15 bg-white text-slate-700 hover:border-[#E54818]/40 hover:text-[#E54818] transition-all shadow-2xs"
                 title="System Notifications"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#E54818] ring-2 ring-white animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-2 h-2 rounded-full bg-[#E54818] ring-2 ring-white animate-pulse" />
               </button>
 
               <button 
                 onClick={handleGlobalAdd}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#E54818] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#E54818] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95"
               >
                 <Plus className="w-4 h-4" />
-                <span>New Item</span>
+                <span className="hidden xs:inline sm:inline">New Item</span>
               </button>
             </div>
           </div>
         </header>
 
         {/* Dynamic View Viewport */}
-        <div className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <div className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
