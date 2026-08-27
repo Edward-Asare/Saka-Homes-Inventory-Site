@@ -51,23 +51,26 @@ export function useInactivityTimeout({
   useEffect(() => {
     if (!enabled) {
       setIsWarning(false);
+      try {
+        localStorage.removeItem(STORAGE_KEY_LAST_ACTIVITY);
+      } catch {
+        // ignore
+      }
       return;
     }
 
-    // Initialize activity timestamp if not present
-    const existing = localStorage.getItem(STORAGE_KEY_LAST_ACTIVITY);
-    if (!existing) {
-      updateLastActivity();
-    }
+    // Reset and immediately record fresh activity timestamp on login / session activation
+    updateLastActivity();
+    setIsWarning(false);
+    setRemainingSeconds(Math.floor(warningMs / 1000));
 
-    let lastThrottledTime = 0;
+    let lastThrottledTime = Date.now();
     const handleUserActivity = () => {
       const now = Date.now();
       // Throttle activity updates to once every 2 seconds for performance
       if (now - lastThrottledTime > 2000) {
         lastThrottledTime = now;
-        // Only update if we are not currently in the warning countdown
-        // (in warning state, the user must explicitly click "Stay Signed In" or interact)
+        // Keep active timestamp fresh on user interaction
         updateLastActivity();
       }
     };
@@ -84,18 +87,26 @@ export function useInactivityTimeout({
       try {
         const stored = localStorage.getItem(STORAGE_KEY_LAST_ACTIVITY);
         if (stored) {
-          lastActivity = parseInt(stored, 10) || Date.now();
+          const parsed = parseInt(stored, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            lastActivity = parsed;
+          }
         }
       } catch {
         // fallback
       }
 
-      const elapsed = Date.now() - lastActivity;
+      const elapsed = Math.max(0, Date.now() - lastActivity);
       const warningThreshold = timeoutMs - warningMs;
 
       if (elapsed >= timeoutMs) {
-        // Inactivity exceeded total timeout -> trigger auto logout
+        // Inactivity exceeded total timeout -> clear stored timestamp & trigger auto logout
         setIsWarning(false);
+        try {
+          localStorage.removeItem(STORAGE_KEY_LAST_ACTIVITY);
+        } catch {
+          // ignore
+        }
         onTimeoutRef.current();
       } else if (elapsed >= warningThreshold) {
         // Within the warning window
@@ -112,9 +123,11 @@ export function useInactivityTimeout({
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY_LAST_ACTIVITY && e.newValue) {
         const last = parseInt(e.newValue, 10);
-        const elapsed = Date.now() - last;
-        if (elapsed < timeoutMs - warningMs) {
-          setIsWarning(false);
+        if (!isNaN(last) && last > 0) {
+          const elapsed = Math.max(0, Date.now() - last);
+          if (elapsed < timeoutMs - warningMs) {
+            setIsWarning(false);
+          }
         }
       }
     };

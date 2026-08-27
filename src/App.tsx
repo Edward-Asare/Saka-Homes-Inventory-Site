@@ -156,6 +156,7 @@ export default function App() {
     setAuthError(null);
     try {
       sessionStorage.removeItem('saka_explicit_logout');
+      localStorage.setItem('saka_last_activity_timestamp', Date.now().toString());
       let user: AppUser;
       if (supabase && isSupabaseConfigured && usernameInput.includes('@') && !usernameInput.toLowerCase().endsWith('@sakainventory')) {
         try {
@@ -189,6 +190,7 @@ export default function App() {
 
   const handleLogout = (isManual = true) => {
     sessionStorage.setItem('saka_explicit_logout', 'true');
+    localStorage.removeItem('saka_last_activity_timestamp');
     authService.logout();
     setAppUser(null);
     handleNavigate('dashboard');

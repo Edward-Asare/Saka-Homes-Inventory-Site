@@ -93,6 +93,7 @@ export const authService = {
     }
     localStorage.removeItem('saka_auth_token');
     localStorage.removeItem('saka_app_user');
+    localStorage.removeItem('saka_last_activity_timestamp');
     window.dispatchEvent(new CustomEvent('saka:logout'));
   },
 
