@@ -224,7 +224,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     if (res.status === 401) {
       if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync') {
-        errMsg = errMsg || 'Unauthorized (401): Invalid username or password. If you created this user in your Supabase Dashboard, please check your credentials and ensure the user email is verified.';
+        errMsg = errMsg || 'Unauthorized (401): Invalid username or password.';
       } else {
         authService.logout();
         const sessionErrMsg = errMsg || 'Session expired or unauthorized (401). Please sign in again.';
