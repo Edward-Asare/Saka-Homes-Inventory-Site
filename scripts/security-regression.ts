@@ -4,7 +4,7 @@
  */
 import jwt from 'jsonwebtoken';
 import { generateAuthToken, getJwtSecret, verifyAppToken } from '../src/middleware/auth';
-import { comparePassword, hashPassword } from '../src/db/index';
+import { comparePassword, hashPassword, shouldRejectUnauthorizedTls } from '../src/db/index';
 import { sanitizeText, sanitizeMultiline } from '../src/lib/sanitize';
 import {
   createPOSchema,
@@ -147,6 +147,19 @@ async function run() {
 
   const secret = getJwtSecret();
   assert('jwt secret is non-empty', Boolean(secret && secret.length >= 32));
+
+  console.log('\n[5] Managed Postgres TLS defaults');
+  const previousReject = process.env.PGSSL_REJECT_UNAUTHORIZED;
+  const previousRender = process.env.RENDER;
+  delete process.env.PGSSL_REJECT_UNAUTHORIZED;
+  process.env.RENDER = 'true';
+  assert('Render host skips CA verification by default', shouldRejectUnauthorizedTls('example.render.com') === false);
+  process.env.PGSSL_REJECT_UNAUTHORIZED = 'true';
+  assert('explicit true still verifies', shouldRejectUnauthorizedTls('example.render.com') === true);
+  if (previousReject === undefined) delete process.env.PGSSL_REJECT_UNAUTHORIZED;
+  else process.env.PGSSL_REJECT_UNAUTHORIZED = previousReject;
+  if (previousRender === undefined) delete process.env.RENDER;
+  else process.env.RENDER = previousRender;
 
   console.log('\nDone.');
   process.exit(failed === 0 ? 0 : 1);

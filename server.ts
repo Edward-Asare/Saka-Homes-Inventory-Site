@@ -1,11 +1,30 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { initializeDatabase, purgeOldLogs, pool } from "./src/db/index";
 import apiRoutes from "./src/db/apiRoutes";
+
+function resolveDistPath(): string {
+  const candidates: string[] = [];
+  try {
+    candidates.push(path.dirname(fileURLToPath(import.meta.url)));
+  } catch {
+    // CJS bundle may not expose import.meta.url
+  }
+  candidates.push(path.join(process.cwd(), "dist"), process.cwd());
+
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "index.html"))) {
+      return dir;
+    }
+  }
+  return path.join(process.cwd(), "dist");
+}
 
 /**
  * Parses and resolves the 'trust proxy' setting in a deployment-aware manner.
@@ -38,8 +57,8 @@ function resolveTrustProxySetting(): boolean | number | string {
     return envVal;
   }
 
-  // Auto-detection: Cloud Run injects K_SERVICE, standard dev container sets container environment
-  const isCloudRunOrContainer = Boolean(process.env.K_SERVICE) || Boolean(process.env.CONTAINER);
+  // Auto-detection: Cloud Run injects K_SERVICE; Render injects RENDER; containers set CONTAINER
+  const isCloudRunOrContainer = Boolean(process.env.K_SERVICE) || Boolean(process.env.CONTAINER) || Boolean(process.env.RENDER);
   if (isCloudRunOrContainer) {
     return 1;
   }
@@ -60,7 +79,7 @@ function getSecureClientIp(req: Request): string {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   if (process.env.NODE_ENV === "production") {
     const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
@@ -172,6 +191,33 @@ async function startServer() {
     res.status(404).json({ error: `API endpoint not found: ${req.originalUrl}` });
   });
 
+  // Vite middleware for development vs static files for production
+  if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = resolveDistPath();
+    console.log(`[STATIC] Serving frontend from ${distPath}`);
+    app.use(express.static(distPath, { index: false, fallthrough: true }));
+    app.get(/^(?!\/api(?:\/|$)).*/, (req, res, next) => {
+      if (path.extname(req.path)) {
+        return res.status(404).end();
+      }
+      const indexFile = path.join(distPath, "index.html");
+      if (!fs.existsSync(indexFile)) {
+        return res.status(500).send("Frontend build is missing. Run npm run build.");
+      }
+      res.setHeader("Cache-Control", "no-cache");
+      res.sendFile(indexFile, (err) => {
+        if (err) next(err);
+      });
+    });
+  }
+
   // Centralized Error Handling Middleware (prevents leaking stack traces or database secrets)
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error("[SERVER ERROR CATCH-ALL]", {
@@ -191,22 +237,6 @@ async function startServer() {
       error: err.expose && safeStatus < 500 ? err.message : "An unexpected server error occurred. Please try again later."
     });
   });
-
-  // Vite middleware for development vs static files for production
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
 
   // Start HTTP server immediately to satisfy container health checks
   app.listen(PORT, "0.0.0.0", () => {

@@ -170,6 +170,28 @@ export async function recordActivityLog(
   }
 }
 
+/**
+ * TLS verification for hosted Postgres.
+ * Render / Supabase / Neon terminate TLS with a chain Node does not always
+ * trust. Default to encrypted-but-unverified there unless explicitly overridden.
+ */
+export function shouldRejectUnauthorizedTls(connectionHint: string): boolean {
+  const explicit = process.env.PGSSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
+  if (explicit === 'false' || explicit === '0') return false;
+  if (explicit === 'true' || explicit === '1') return true;
+
+  const hint = (connectionHint || '').toLowerCase();
+  const managedHost =
+    Boolean(process.env.RENDER) ||
+    hint.includes('render.com') ||
+    hint.includes('supabase.com') ||
+    hint.includes('neon.tech') ||
+    hint.includes('amazonaws.com');
+
+  if (managedHost) return false;
+  return true;
+}
+
 function buildPoolConfig(): PoolConfig {
   const databaseUrl = process.env.DATABASE_URL?.trim();
 
@@ -182,7 +204,7 @@ function buildPoolConfig(): PoolConfig {
 
     const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
     const isRemote = !isLocalhost || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
-    const rejectUnauthorized = process.env.PGSSL_REJECT_UNAUTHORIZED !== 'false';
+    const rejectUnauthorized = shouldRejectUnauthorizedTls(url);
 
     return {
       connectionString: url,
@@ -202,7 +224,7 @@ function buildPoolConfig(): PoolConfig {
 
   const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   const isRemote = (!isLocalhost && Boolean(process.env.PGHOST)) || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
-  const rejectUnauthorized = process.env.PGSSL_REJECT_UNAUTHORIZED !== 'false';
+  const rejectUnauthorized = shouldRejectUnauthorizedTls(host);
 
   return {
     host,

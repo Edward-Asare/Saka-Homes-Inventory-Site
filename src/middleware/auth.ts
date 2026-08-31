@@ -119,8 +119,8 @@ export async function verifySupabaseAccessToken(token: string): Promise<{
   fullName?: string;
   userMetadata?: Record<string, any>;
 } | null> {
-  const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
-  const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
+  const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
 
   if (rawSupabaseUrl && rawAnonKey) {
     try {
@@ -137,7 +137,9 @@ export async function verifySupabaseAccessToken(token: string): Promise<{
       });
       clearTimeout(timeout);
 
-      if (res.ok) {
+      if (!res.ok) {
+        console.warn('[AUTH] Supabase token introspection returned', res.status);
+      } else {
         const data: any = await res.json();
         if (data?.id) {
           return {
@@ -194,7 +196,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    let decoded: jwt.JwtPayload;
+    let decoded: jwt.JwtPayload | null = null;
     try {
       decoded = verifyAppToken(token);
     } catch (verifyErr: any) {
@@ -203,9 +205,38 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           error: 'Session expired. Please sign in again.'
         });
       }
-      return res.status(401).json({
-        error: 'Invalid authentication token.'
+
+      // Compatibility: a Supabase access token may still be in localStorage.
+      // Verify it with Supabase (never via jwt.decode) and map to the local user.
+      const supabaseIdentity = await verifySupabaseAccessToken(token);
+      if (!supabaseIdentity) {
+        return res.status(401).json({
+          error: 'Invalid authentication token.'
+        });
+      }
+
+      const synced = await syncOrGetSupabaseProfile({
+        id: supabaseIdentity.id,
+        email: supabaseIdentity.email,
+        fullName: supabaseIdentity.fullName,
+        userMetadata: supabaseIdentity.userMetadata
       });
+
+      if (!synced.isActive) {
+        return res.status(403).json({
+          error: 'Your account has been deactivated. Please contact your system administrator.'
+        });
+      }
+
+      req.user = {
+        id: synced.id,
+        username: synced.username,
+        fullName: synced.fullName,
+        role: synced.role as UserRole,
+        mustChangePassword: Boolean(synced.mustChangePassword),
+        tokenVersion: synced.tokenVersion
+      };
+      return next();
     }
 
     if (!decoded || (!decoded.sub && !(decoded as any).userId && !(decoded as any).id)) {
