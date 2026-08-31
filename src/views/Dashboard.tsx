@@ -90,13 +90,13 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-44 bg-purple-950/20 rounded-3xl border border-purple-900/10" />
+        <div className="h-44 bg-purple-950/20 rounded-2xl border border-purple-900/10" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-200/60 rounded-3xl" />)}
+          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-200/60 rounded-2xl" />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-96 bg-slate-200/60 rounded-3xl" />
-          <div className="h-96 bg-slate-200/60 rounded-3xl" />
+          <div className="lg:col-span-2 h-96 bg-slate-200/60 rounded-2xl" />
+          <div className="h-96 bg-slate-200/60 rounded-2xl" />
         </div>
       </div>
     );
@@ -105,7 +105,7 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
   return (
     <div className="space-y-8 pb-10">
       {/* Executive Welcome Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#1E1B4B] via-[#2B1A70] to-[#120B29] rounded-3xl p-8 text-white shadow-xl shadow-purple-950/10 border border-purple-900/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#1E1B4B] via-[#2B1A70] to-[#120B29] rounded-2xl p-8 text-white shadow-xl shadow-purple-950/10 border border-purple-900/50">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-[#E54818]/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-8 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -114,7 +114,7 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
             <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/20 inline-block">
               <SakaHomesLogo variant="white" size="md" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-heading font-semibold tracking-tight text-white">
               Saka Homes Material & Site Operations
             </h1>
           </div>
@@ -130,12 +130,12 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
-              className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all group hover:border-slate-300"
+              className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all group hover:border-slate-300"
             >
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</p>
-                <p className="text-3xl font-heading font-black text-slate-900 mt-1">{stat.value}</p>
-                <p className="text-[11px] text-slate-400 mt-1">{stat.description}</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">{stat.label}</p>
+                <p className="text-3xl font-heading font-semibold text-slate-900 mt-1.5 tabular-nums">{stat.value}</p>
+                <p className="text-[12px] text-slate-400 mt-1.5">{stat.description}</p>
               </div>
             </motion.div>
           );
@@ -145,11 +145,11 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
       {/* Analytics & Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Category Breakdown Bar Chart */}
-        <div className="lg:col-span-2 bg-white p-7 rounded-3xl border border-slate-200/80 shadow-xs">
+        <div className="lg:col-span-2 bg-white p-7 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-heading font-extrabold text-slate-900">Category Stock Breakdown</h2>
-              <p className="text-xs text-slate-500">Material distribution across active store categories</p>
+              <h2 className="text-lg font-heading font-semibold text-slate-900">Category Stock Breakdown</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Material distribution across active store categories</p>
             </div>
             <button 
               onClick={() => setActiveView('categories')}
@@ -201,12 +201,12 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
         </div>
 
         {/* Inventory Health Pie Chart */}
-        <div className="bg-white p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+        <div className="bg-white p-7 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-heading font-extrabold text-slate-900">Stock Health Index</h2>
-                <p className="text-xs text-slate-500">Ratio of stock availability status</p>
+                <h2 className="text-lg font-heading font-semibold text-slate-900">Stock Health Index</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Ratio of stock availability status</p>
               </div>
               <ShieldCheck className="w-5 h-5 text-emerald-500" />
             </div>
@@ -240,8 +240,8 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total SKUs</span>
-                <span className="text-2xl font-heading font-black text-slate-900">{filteredItems.length}</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-[0.12em]">Total SKUs</span>
+                <span className="text-2xl font-heading font-semibold text-slate-900 tabular-nums">{filteredItems.length}</span>
               </div>
             </div>
           </div>
@@ -261,15 +261,15 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
       </div>
 
       {/* Critical Items Alert Board */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-heading font-extrabold text-slate-900">Critical Stock Attention Needed</h2>
-              <p className="text-xs text-slate-500">Items reaching or exceeding minimum safety thresholds</p>
+              <h2 className="text-lg font-heading font-semibold text-slate-900">Critical Stock Attention Needed</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Items reaching or exceeding minimum safety thresholds</p>
             </div>
           </div>
           <button 
@@ -283,7 +283,7 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <tr className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">
                 <th className="px-6 py-3.5">Material & Code</th>
                 <th className="px-6 py-3.5">Category</th>
                 <th className="px-6 py-3.5">Stock Meter</th>
@@ -330,7 +330,7 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
                     <td className="px-6 py-4 text-slate-500">{item.supplier || 'N/A'}</td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase",
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wider uppercase",
                         item.status === 'LOW STOCK' 
                           ? "bg-amber-50 text-amber-700 border border-amber-200/80" 
                           : "bg-rose-50 text-rose-700 border border-rose-200/80"

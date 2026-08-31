@@ -28,7 +28,7 @@ export default function NoStockModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 overflow-hidden"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 overflow-hidden"
           >
             {/* Top decorative accent */}
             <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600" />
@@ -47,11 +47,11 @@ export default function NoStockModal({
               </div>
 
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100/80 text-rose-800 text-[11px] font-extrabold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100/80 text-rose-800 text-[11px] font-semibold uppercase tracking-wider">
                   <AlertCircle className="w-3.5 h-3.5" />
                   <span>Out of Stock</span>
                 </div>
-                <h3 className="text-xl font-heading font-extrabold text-[#1E1B4B]">
+                <h3 className="text-xl font-heading font-semibold text-[#1E1B4B]">
                   No Quantity Stock Available
                 </h3>
                 <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto">
@@ -74,7 +74,7 @@ export default function NoStockModal({
                 </div>
                 <div className="flex items-center justify-between font-bold text-slate-700">
                   <span>Current Available Stock:</span>
-                  <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-[11px] font-black">
+                  <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-[11px] font-bold">
                     0 {unitOfMeasure}
                   </span>
                 </div>

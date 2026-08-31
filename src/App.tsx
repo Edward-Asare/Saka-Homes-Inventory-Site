@@ -246,10 +246,10 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#FAF8F5]">
-        <div className="p-4 bg-white rounded-3xl border border-amber-900/10 shadow-sm mb-4">
+        <div className="p-4 bg-white rounded-2xl border border-amber-900/10 shadow-sm mb-5">
           <SakaHomesLogo size="lg" showSubtitle />
         </div>
-        <Loader2 className="w-8 h-8 animate-spin text-[#E54818]" />
+        <Loader2 className="w-7 h-7 animate-spin text-[#E54818]" />
       </div>
     );
   }
@@ -270,28 +270,28 @@ export default function App() {
 
           {/* Top Brand Header */}
           <div className="relative z-10">
-            <div className="bg-black/40 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/20 inline-block shadow-lg">
+            <div className="bg-black/40 backdrop-blur-md px-5 py-3 rounded-xl border border-white/20 inline-block shadow-lg">
               <SakaHomesLogo variant="white" size="lg" showSubtitle />
             </div>
           </div>
 
           {/* Middle Value Proposition */}
           <div className="relative z-10 my-auto py-12 space-y-6 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E54818]/80 text-white text-xs font-bold shadow-md">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E54818]/80 text-white text-[11px] font-semibold tracking-wide uppercase">
               <span>Saka Homes Architecture & Operations</span>
             </div>
-            <h1 className="text-4xl xl:text-5xl font-heading font-extrabold tracking-tight text-white leading-tight drop-shadow-md">
+            <h1 className="text-4xl xl:text-5xl font-heading font-semibold tracking-tight text-white leading-[1.15]">
               Saka Homes Inventory Security & Operations Portal
             </h1>
             
-            <p className="text-slate-200 text-sm xl:text-base leading-relaxed drop-shadow-sm">
+            <p className="text-slate-200 text-sm xl:text-[15px] leading-relaxed">
               Sign in with your assigned account credentials. The portal automatically resolves your workspace permissions based on your assigned role (Admin or Viewer).
             </p>
           </div>
 
           <div className="relative z-10 text-xs text-slate-300 font-medium flex items-center justify-between">
             <span>© {new Date().getFullYear()} Saka Homes Construction & Real Estate Development Ltd.</span>
-            <span className="text-[11px] text-slate-400">Accra, Ghana</span>
+            <span className="text-[11px] text-slate-400 tracking-wide">Accra, Ghana</span>
           </div>
         </div>
 
@@ -303,24 +303,24 @@ export default function App() {
             style={{ backgroundImage: `url(${loginBg})` }}
           />
           <motion.div 
-            initial={{ opacity: 0, scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl shadow-slate-950/5 p-6 sm:p-10 space-y-6 sm:space-y-8 border border-slate-200/80 relative z-10"
+            className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-slate-950/5 p-6 sm:p-10 space-y-6 sm:space-y-8 border border-slate-200/80 relative z-10"
           >
             <div className="space-y-4 flex flex-col items-center text-center">
-              <div className="p-4 bg-[#FAF8F5] rounded-3xl border border-amber-900/10 shadow-2xs">
+              <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-amber-900/10">
                 <SakaHomesLogo size="lg" showSubtitle />
               </div>
-              <div className="space-y-1">
-                <h2 className="text-2xl font-heading font-extrabold text-[#1E1B4B]">Portal Sign In</h2>
-                <p className="text-slate-500 text-xs">Enter your credentials to access your assigned inventory workspace.</p>
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-heading font-semibold text-[#1E1B4B]">Portal Sign In</h2>
+                <p className="text-slate-500 text-sm">Enter your credentials to access your assigned inventory workspace.</p>
               </div>
             </div>
             
             <div className="space-y-5">
               <form onSubmit={handlePostgresAuth} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-semibold text-[#1E1B4B] uppercase tracking-[0.12em] mb-1.5">
                     Username or Email
                   </label>
                   <div className="relative">
@@ -332,13 +332,13 @@ export default function App() {
                       onChange={(e) => setUsernameInput(e.target.value)}
                       placeholder="e.g. yourname@sakainventory"
                       autoComplete="username"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E1B4B] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E54818] transition-all"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-[#1E1B4B] placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E54818]/40 focus:border-[#E54818] transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-semibold text-[#1E1B4B] uppercase tracking-[0.12em] mb-1.5">
                     Password
                   </label>
                   <div className="relative">
@@ -350,7 +350,7 @@ export default function App() {
                       onChange={(e) => setPasswordInput(e.target.value)}
                       placeholder="••••••••"
                       autoComplete="current-password"
-                      className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E1B4B] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E54818] transition-all"
+                      className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-[#1E1B4B] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E54818]/40 focus:border-[#E54818] transition-all"
                     />
                     <button
                       type="button"
@@ -370,7 +370,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={isLoggingIn}
-                  className="w-full py-3.5 bg-[#E54818] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                  className="w-full py-3 bg-[#E54818] text-white rounded-lg text-sm font-semibold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                 >
                   {isLoggingIn ? (
                     <>
@@ -388,7 +388,7 @@ export default function App() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   className={cn(
-                    "p-4 rounded-xl text-xs text-left flex items-start gap-2.5 border",
+                    "p-4 rounded-lg text-sm text-left flex items-start gap-2.5 border",
                     authError.includes('inactivity') 
                       ? "bg-amber-50 border-amber-200 text-amber-900" 
                       : "bg-rose-50 border-rose-200 text-rose-700"
@@ -401,7 +401,7 @@ export default function App() {
                   )}
                   <div className="space-y-0.5">
                     {authError.includes('inactivity') && (
-                      <p className="font-extrabold text-[11px] uppercase tracking-wider text-amber-800">
+                      <p className="font-semibold text-[11px] uppercase tracking-wider text-amber-800">
                         Session Inactivity Timeout
                       </p>
                     )}
@@ -423,7 +423,7 @@ export default function App() {
       {!sidebarOpen && (
         <button 
           onClick={() => setSidebarOpen(true)}
-          className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#E54818] text-white rounded-2xl shadow-2xl items-center justify-center flex hover:bg-[#C83A0F] active:scale-95 transition-all"
+          className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#E54818] text-white rounded-xl shadow-2xl items-center justify-center flex hover:bg-[#C83A0F] active:scale-95 transition-all"
         >
           <Menu className="w-6 h-6" />
         </button>
@@ -462,18 +462,18 @@ export default function App() {
 
               {/* Warehouse Location Pill */}
               <div className="px-5 py-3.5 shrink-0">
-                <div className="bg-purple-950/60 border border-purple-800/40 rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs text-purple-200">
+                <div className="bg-purple-950/60 border border-purple-800/40 rounded-lg px-3.5 py-2.5 flex items-center justify-between text-xs text-purple-200">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#E54818] animate-pulse" />
-                    <span className="font-bold text-white">Central Warehouse</span>
+                    <span className="font-semibold text-white">Central Warehouse</span>
                   </div>
-                  <span className="text-[10px] font-extrabold text-orange-400 bg-purple-900/80 px-2 py-0.5 rounded-md border border-purple-700/60">ACCRA</span>
+                  <span className="text-[10px] font-semibold tracking-wider text-orange-400 bg-purple-900/80 px-2 py-0.5 rounded border border-purple-700/60">ACCRA</span>
                 </div>
               </div>
 
               {/* Navigation Items */}
-              <nav className="flex-1 px-3 space-y-1.5 py-2 lg:py-3 overflow-y-auto min-h-0 overscroll-contain">
-                <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-purple-400/70 mb-1">Navigation</p>
+              <nav className="flex-1 px-3 space-y-0.5 py-2 lg:py-3 overflow-y-auto min-h-0 overscroll-contain">
+                <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-purple-400/70 mb-2">Navigation</p>
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeView === item.id;
@@ -482,18 +482,18 @@ export default function App() {
                       key={item.id}
                       onClick={() => handleNavigate(item.id)}
                       className={cn(
-                        "w-full flex items-center gap-3.5 px-3.5 py-2.5 sm:py-3 rounded-xl text-xs font-semibold transition-all group relative",
+                        "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all group relative",
                         isActive 
                           ? "bg-gradient-to-r from-[#E54818] to-[#C83A0F] text-white shadow-lg shadow-orange-950/40" 
                           : "text-purple-200/70 hover:bg-purple-900/30 hover:text-white"
                       )}
                     >
-                      <Icon className={cn("w-4 h-4 transition-transform group-hover:scale-110", isActive ? "text-white" : "text-purple-300/60 group-hover:text-orange-400")} />
-                      <span className="font-semibold text-sm">{item.label}</span>
+                      <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-purple-300/60 group-hover:text-orange-400")} />
+                      <span>{item.label}</span>
                       {isActive && (
                         <motion.div 
                           layoutId="activeTabGlow" 
-                          className="ml-auto w-2 h-2 rounded-full bg-amber-300 shadow-sm"
+                          className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-300"
                         />
                       )}
                     </button>
@@ -503,24 +503,24 @@ export default function App() {
 
               {/* Sidebar Footer User Card with Safe Area Inset Support on Mobile and Tight Padding on Laptop */}
               <div className="p-3.5 sm:p-4 border-t border-purple-900/40 bg-[#120E2B] shrink-0 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] lg:pb-4">
-                <div className="bg-[#211A48] border border-purple-800/40 rounded-2xl p-3 space-y-2.5 shadow-inner">
+                <div className="bg-[#211A48] border border-purple-800/40 rounded-xl p-3 space-y-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-semibold text-xs uppercase shrink-0">
                       {appUser.username[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-xs text-white truncate">{appUser.fullName}</p>
+                      <p className="font-semibold text-xs text-white truncate">{appUser.fullName}</p>
                       <div className="mt-0.5">
                         {appUser.role === 'ADMIN' ? (
-                          <span className="inline-block px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 rounded text-[9px] font-extrabold uppercase tracking-wider">
+                          <span className="inline-block px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 rounded text-[9px] font-semibold uppercase tracking-wider">
                             Admin Access
                           </span>
                         ) : appUser.role === 'MANAGER' ? (
-                          <span className="inline-block px-1.5 py-0.5 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 rounded text-[9px] font-extrabold uppercase tracking-wider">
+                          <span className="inline-block px-1.5 py-0.5 bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 rounded text-[9px] font-semibold uppercase tracking-wider">
                             Manager (Ops)
                           </span>
                         ) : (
-                          <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/40 text-blue-300 rounded text-[9px] font-extrabold uppercase tracking-wider">
+                          <span className="inline-block px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/40 text-blue-300 rounded text-[9px] font-semibold uppercase tracking-wider">
                             Guest (Read Only)
                           </span>
                         )}
@@ -530,7 +530,7 @@ export default function App() {
                   <button
                     id="sidebar-sign-out-btn"
                     onClick={() => handleLogout(true)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 rounded-xl text-xs font-bold text-rose-200 hover:text-white transition-all active:scale-[0.98] shadow-xs"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 rounded-lg text-xs font-semibold text-rose-200 hover:text-white transition-all active:scale-[0.98]"
                   >
                     <LogOut className="w-3.5 h-3.5 text-rose-400" />
                     <span>Sign Out</span>
@@ -545,13 +545,13 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* Glassmorphic Top Bar */}
-        <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-amber-900/10 px-3 sm:px-6 py-3 sm:py-4 print:hidden shadow-2xs">
+        <header className="sticky top-0 z-30 bg-[#FAF8F5]/90 backdrop-blur-xl border-b border-amber-900/10 px-3 sm:px-6 py-3 sm:py-3.5 print:hidden">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex-1 flex items-center gap-2 sm:gap-3">
               {!sidebarOpen && (
                 <button 
                   onClick={() => setSidebarOpen(true)} 
-                  className="p-2 hover:bg-slate-200/60 rounded-xl transition-colors text-slate-700 shrink-0"
+                  className="p-2 hover:bg-slate-200/60 rounded-lg transition-colors text-slate-700 shrink-0"
                   title="Open Menu"
                 >
                   <Menu className="w-5 h-5" />
@@ -562,7 +562,7 @@ export default function App() {
                 <input 
                   type="text"
                   placeholder="Search materials, PO numbers, site dispatches..."
-                  className="w-full bg-white hover:bg-white focus:bg-white border border-amber-900/15 rounded-xl pl-9 sm:pl-10 pr-4 sm:pr-12 py-2 sm:py-2.5 text-xs font-semibold text-[#1E1B4B] outline-none focus:border-[#E54818] focus:ring-4 focus:ring-[#E54818]/10 transition-all placeholder:text-slate-400"
+                  className="w-full bg-white hover:bg-white focus:bg-white border border-amber-900/15 rounded-lg pl-9 sm:pl-10 pr-4 sm:pr-12 py-2 sm:py-2.5 text-sm font-medium text-[#1E1B4B] outline-none focus:border-[#E54818] focus:ring-2 focus:ring-[#E54818]/15 transition-all placeholder:text-slate-400 placeholder:font-normal"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -572,7 +572,7 @@ export default function App() {
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               <button 
                 onClick={handleNotificationClick}
-                className="relative p-2 sm:p-2.5 rounded-xl border border-amber-900/15 bg-white text-slate-700 hover:border-[#E54818]/40 hover:text-[#E54818] transition-all shadow-2xs"
+                className="relative p-2 sm:p-2.5 rounded-lg border border-amber-900/15 bg-white text-slate-700 hover:border-[#E54818]/40 hover:text-[#E54818] transition-all"
                 title="System Notifications"
               >
                 <Bell className="w-4 h-4" />
@@ -581,7 +581,7 @@ export default function App() {
 
               <button 
                 onClick={handleGlobalAdd}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#E54818] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#E54818] text-white rounded-lg text-xs font-semibold shadow-md shadow-orange-600/20 hover:bg-[#C83A0F] hover:shadow-lg transition-all active:scale-95"
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden xs:inline sm:inline">New Item</span>
@@ -591,11 +591,11 @@ export default function App() {
               <button
                 id="header-sign-out-btn"
                 onClick={() => handleLogout(true)}
-                className="p-2 sm:py-2.5 sm:px-3 rounded-xl border border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all shadow-2xs flex items-center gap-1.5 active:scale-95"
+                className="p-2 sm:py-2.5 sm:px-3 rounded-lg border border-rose-200/80 bg-rose-50/80 text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all flex items-center gap-1.5 active:scale-95"
                 title="Sign Out"
               >
                 <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
-                <span className="hidden md:inline text-xs font-bold text-rose-700">Sign Out</span>
+                <span className="hidden md:inline text-xs font-semibold text-rose-700">Sign Out</span>
               </button>
             </div>
           </div>

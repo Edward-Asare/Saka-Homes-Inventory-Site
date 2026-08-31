@@ -215,7 +215,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
             <SakaHomesLogo size="md" showSubtitle />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight text-slate-900">Inventory & Material Reports</h1>
+            <h1 className="text-2xl sm:text-3xl font-heading font-semibold tracking-tight text-slate-900">Inventory & Material Reports</h1>
             <p className="text-slate-500 text-xs sm:text-sm">Generate, filter, and export customized stock summaries by date range.</p>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
       </div>
 
       {/* Date Filter & Scope Selection Panel */}
-      <div className="bg-white p-6 rounded-3xl border-2 border-[#E2E8F0] shadow-sm space-y-6 print:hidden">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6 print:hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E2E8F0] pb-5">
           <div className="flex items-center gap-2 text-sm font-bold text-[#1E293B]">
             <Filter className="w-4 h-4 text-blue-600" />
@@ -281,7 +281,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
         {/* Custom Date Pickers & Scope Selector */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase text-[#64748B] tracking-wider flex items-center gap-1">
+            <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
               From Date
             </label>
@@ -297,7 +297,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase text-[#64748B] tracking-wider flex items-center gap-1">
+            <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
               To Date
             </label>
@@ -313,7 +313,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">
+            <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">
               Report View Scope
             </label>
             <select
@@ -350,59 +350,59 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
 
       {/* Printable Report Header */}
       <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6">
-        <h1 className="text-2xl font-black uppercase text-slate-900">Saka Homes Limited - Materials & Inventory Report</h1>
+        <h1 className="text-2xl font-heading font-semibold text-slate-900">Saka Homes Limited — Materials & Inventory Report</h1>
         <p className="text-sm font-semibold text-slate-600 mt-1">Date Scope: {getDateLabel()} | Generated: {new Date().toLocaleString()}</p>
       </div>
 
       {/* Filtered Dynamic Summary Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-3xl border-2 border-[#E2E8F0] shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase text-[#94A3B8] tracking-widest">Total Valuation</p>
-              <p className="text-xl font-black text-[#1E293B]">{formatCurrency(totals.totalValue)}</p>
+              <p className="text-[10px] font-bold uppercase text-[#94A3B8] tracking-widest">Total Valuation</p>
+              <p className="text-xl font-bold text-[#1E293B]">{formatCurrency(totals.totalValue)}</p>
             </div>
           </div>
           <p className="text-[11px] text-[#64748B]">Current inventory value in stock</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border-2 border-[#E2E8F0] shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
               <ArrowLeftRight className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase text-[#94A3B8] tracking-widest">Issued Out (Period)</p>
-              <p className="text-xl font-black text-[#1E293B]">{formatNumber(totalIssuedQtyInPeriod)} units</p>
+              <p className="text-[10px] font-bold uppercase text-[#94A3B8] tracking-widest">Issued Out (Period)</p>
+              <p className="text-xl font-bold text-[#1E293B]">{formatNumber(totalIssuedQtyInPeriod)} units</p>
             </div>
           </div>
           <p className="text-[11px] text-[#64748B]">{filteredMovements.filter(m => m.movementType === 'ISSUED_OUT').length} issuance logs in period</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border-2 border-[#E2E8F0] shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
               <RefreshCw className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase text-[#94A3B8] tracking-widest">Restocked (Period)</p>
-              <p className="text-xl font-black text-[#1E293B]">{formatNumber(totalRestockedQtyInPeriod)} units</p>
+              <p className="text-[10px] font-bold uppercase text-[#94A3B8] tracking-widest">Restocked (Period)</p>
+              <p className="text-xl font-bold text-[#1E293B]">{formatNumber(totalRestockedQtyInPeriod)} units</p>
             </div>
           </div>
           <p className="text-[11px] text-[#64748B]">Received from suppliers</p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border-2 border-[#E2E8F0] shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600">
               <ShoppingCart className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase text-[#94A3B8] tracking-widest">PO Spend (Period)</p>
-              <p className="text-xl font-black text-blue-600">{formatCurrency(totalProcurementSpendInPeriod)}</p>
+              <p className="text-[10px] font-bold uppercase text-[#94A3B8] tracking-widest">PO Spend (Period)</p>
+              <p className="text-xl font-bold text-blue-600">{formatCurrency(totalProcurementSpendInPeriod)}</p>
             </div>
           </div>
           <p className="text-[11px] text-[#64748B]">{filteredPOs.length} purchase orders in period</p>
@@ -411,21 +411,21 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
 
       {/* Category Summary Section */}
       {(reportScope === 'ALL' || reportScope === 'CATEGORY_SUMMARY') && (
-        <div className="bg-white rounded-3xl border-2 border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="p-8 border-b border-[#E2E8F0]">
-            <h2 className="text-xl font-bold text-[#1E293B]">Stocks Summary By Category</h2>
+            <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">Stocks Summary By Category</h2>
             <p className="text-sm text-[#64748B]">Detailed breakdown of current availability metrics across all departments.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-[#F8FAFC]">
                 <tr>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em]">Category</th>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em] text-center">Total Items</th>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em] text-center">Out of Stock</th>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em] text-center">Low Stock</th>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em] text-center">In Stock</th>
-                  <th className="px-8 py-5 text-xs font-black text-[#64748B] uppercase tracking-[0.15em] text-right">Value (Approx)</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Category</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] text-center">Total Items</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] text-center">Out of Stock</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] text-center">Low Stock</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] text-center">In Stock</th>
+                  <th className="px-8 py-5 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] text-right">Value (Approx)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
@@ -454,12 +454,12 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
               </tbody>
               <tfoot className="bg-[#1E293B] text-white">
                 <tr>
-                  <td className="px-8 py-6 font-black uppercase tracking-widest text-xs">Grand Total</td>
-                  <td className="px-8 py-6 text-center font-black text-lg">{totals.totalItems}</td>
-                  <td className="px-8 py-6 text-center font-black text-lg">{totals.outOfStock}</td>
-                  <td className="px-8 py-6 text-center font-black text-lg">{totals.lowStock}</td>
-                  <td className="px-8 py-6 text-center font-black text-lg text-emerald-400">{totals.inStock}</td>
-                  <td className="px-8 py-6 text-right font-black text-lg text-blue-400">{formatCurrency(totals.totalValue)}</td>
+                  <td className="px-8 py-6 font-bold uppercase tracking-widest text-xs">Grand Total</td>
+                  <td className="px-8 py-6 text-center font-bold text-lg">{totals.totalItems}</td>
+                  <td className="px-8 py-6 text-center font-bold text-lg">{totals.outOfStock}</td>
+                  <td className="px-8 py-6 text-center font-bold text-lg">{totals.lowStock}</td>
+                  <td className="px-8 py-6 text-center font-bold text-lg text-emerald-400">{totals.inStock}</td>
+                  <td className="px-8 py-6 text-right font-bold text-lg text-blue-400">{formatCurrency(totals.totalValue)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -469,10 +469,10 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
 
       {/* Movements Report Table */}
       {(reportScope === 'ALL' || reportScope === 'MOVEMENTS') && (
-        <div className="bg-white rounded-3xl border-2 border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="p-8 border-b border-[#E2E8F0] flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
-              <h2 className="text-xl font-bold text-[#1E293B]">Stock Movements & Issued Items Log</h2>
+              <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">Stock Movements & Issued Items Log</h2>
               <p className="text-sm text-[#64748B]">Showing {filteredMovements.length} records matching the period: <strong className="text-[#1E293B]">{getDateLabel()}</strong></p>
             </div>
             <div className="px-4 py-2 bg-amber-50 text-amber-800 rounded-xl font-bold text-xs w-max">
@@ -483,14 +483,14 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
             <table className="w-full text-left">
               <thead className="bg-[#F8FAFC]">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Ref Code</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Item Name</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Qty</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Stock Change</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Recipient / Site</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Issued / Logged By</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Ref Code</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Date</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Type</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Item Name</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Qty</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Stock Change</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Recipient / Site</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Issued / Logged By</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
@@ -506,7 +506,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
                     <td className="px-6 py-4 text-[#64748B]">{m.date}</td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
                         m.movementType === 'ISSUED_OUT' ? "bg-amber-100 text-amber-800" :
                         m.movementType === 'RESTOCKED' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
                       )}>
@@ -514,7 +514,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
                       </span>
                     </td>
                     <td className="px-6 py-4 font-bold text-[#1E293B]">{m.itemName}</td>
-                    <td className="px-6 py-4 font-black">{m.quantity} {m.unitOfMeasure}</td>
+                    <td className="px-6 py-4 font-bold">{m.quantity} {m.unitOfMeasure}</td>
                     <td className="px-6 py-4 text-[#64748B]">{m.previousStock} → <span className="font-bold text-[#1E293B]">{m.newStock}</span></td>
                     <td className="px-6 py-4 font-medium text-[#1E293B]">{m.recipient}</td>
                     <td className="px-6 py-4">
@@ -535,10 +535,10 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
 
       {/* Purchase Orders Report Table */}
       {(reportScope === 'ALL' || reportScope === 'PURCHASE_ORDERS') && (
-        <div className="bg-white rounded-3xl border-2 border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="p-8 border-b border-[#E2E8F0] flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
-              <h2 className="text-xl font-bold text-[#1E293B]">Procurement & Purchase Orders Log</h2>
+              <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">Procurement & Purchase Orders Log</h2>
               <p className="text-sm text-[#64748B]">Showing {filteredPOs.length} purchase orders matching the period: <strong className="text-[#1E293B]">{getDateLabel()}</strong></p>
             </div>
             <div className="px-4 py-2 bg-purple-50 text-purple-800 rounded-xl font-bold text-xs w-max">
@@ -549,14 +549,14 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
             <table className="w-full text-left">
               <thead className="bg-[#F8FAFC]">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">PO Number</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Order Date</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Item Name</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Supplier</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Qty Ordered</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Total Cost</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Issued By (Account)</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#64748B] uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">PO Number</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Order Date</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Item Name</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Supplier</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Qty Ordered</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Total Cost</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Issued By (Account)</th>
+                  <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E2E8F0]">
@@ -582,7 +582,7 @@ export default function Reports({ searchQuery = '', currentUser }: ReportsProps)
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
                         po.status === 'COMPLETED' ? "bg-emerald-100 text-emerald-800" :
                         po.status === 'PENDING' ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
                       )}>

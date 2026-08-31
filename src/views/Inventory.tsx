@@ -298,8 +298,8 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory Tracker</h1>
-          <p className="text-[#64748B]">Manage and track all materials for current and future projects.</p>
+          <h1 className="text-3xl font-heading font-semibold tracking-tight text-[#1E1B4B]">Inventory Tracker</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage and track all materials for current and future projects.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button 
@@ -335,7 +335,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
       </div>
 
       {/* Date Range & Preset Filter Bar */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-bold text-[#1E1B4B]">
             <Filter className="w-4 h-4 text-[#E54818]" />
@@ -367,7 +367,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
         {/* Custom Date Pickers */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end pt-2 border-t border-slate-100">
           <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-[#E54818]" />
               From Date (Restocked)
             </label>
@@ -383,7 +383,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-[#E54818]" />
               To Date (Restocked)
             </label>
@@ -414,7 +414,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
               key={status}
               onClick={() => setFilterStatus(status)}
               className={cn(
-                "px-3.5 py-1.5 rounded-xl text-xs font-extrabold tracking-wider transition-all",
+                "px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wider transition-all",
                 filterStatus === status 
                   ? "bg-slate-900 text-white shadow-sm" 
                   : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
@@ -460,15 +460,15 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
             return (
               <div 
                 key={item.id} 
-                className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
+                className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className="px-2.5 py-1 bg-purple-50 text-[#1E1B4B] border border-purple-100 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                    <span className="px-2.5 py-1 bg-purple-50 text-[#1E1B4B] border border-purple-100 rounded-lg text-[10px] font-bold uppercase tracking-wider">
                       {item.category}
                     </span>
                     <span className={cn(
-                      "px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider",
+                      "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider",
                       item.status === 'IN STOCK' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                       item.status === 'LOW STOCK' ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-rose-50 text-rose-700 border border-rose-200"
                     )}>
@@ -476,7 +476,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     </span>
                   </div>
 
-                  <h3 className="font-heading font-extrabold text-base text-[#1E1B4B] group-hover:text-[#E54818] transition-colors">
+                  <h3 className="font-heading font-semibold text-base text-[#1E1B4B] group-hover:text-[#E54818] transition-colors">
                     {item.itemName}
                   </h3>
                   <p className="text-[11px] font-mono text-slate-400 mt-0.5">{item.itemCode || 'N/A'}</p>
@@ -484,11 +484,11 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Unit Cost</p>
-                      <p className="font-heading font-extrabold text-slate-900 text-sm">{formatCurrency(item.unitCost)}</p>
+                      <p className="font-heading font-semibold text-slate-900 text-sm">{formatCurrency(item.unitCost)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Valuation</p>
-                      <p className="font-heading font-extrabold text-[#E54818] text-sm">{formatCurrency((item.unitCost || 0) * currStock)}</p>
+                      <p className="font-heading font-semibold text-[#E54818] text-sm">{formatCurrency((item.unitCost || 0) * currStock)}</p>
                     </div>
                   </div>
 
@@ -559,21 +559,21 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
         </div>
       ) : (
         /* Table Section */
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left min-w-[1100px]">
               <thead className="bg-slate-50/80 border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Item Code</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Item Name & Supplier</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Unit</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Quantity</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Min Level</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Date Received</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Unit Cost</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Code</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Item Name & Supplier</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Quantity</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Min Level</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date Received</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unit Cost</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium">
@@ -606,7 +606,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-600">{item.unitOfMeasure}</td>
-                    <td className="px-6 py-4 font-heading font-black text-slate-900 text-sm">
+                    <td className="px-6 py-4 font-heading font-bold text-slate-900 text-sm">
                       {item.currentStock !== undefined ? item.currentStock : item.reorderQty}
                     </td>
                     <td className="px-6 py-4 text-slate-500 font-semibold">
@@ -620,7 +620,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider",
+                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider",
                         item.status === 'IN STOCK' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                         item.status === 'LOW STOCK' ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-rose-50 text-rose-700 border border-rose-200"
                       )}>
@@ -692,11 +692,11 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="p-8 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
                 <div>
-                  <h2 className="text-2xl font-bold">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
+                  <h2 className="text-2xl font-heading font-semibold text-[#1E1B4B]">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {editingItem ? `Updating ${editingItem.itemName}` : 'Create a new material record with unique item code'}
                   </p>
@@ -724,7 +724,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Item Name</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Item Name</label>
                     <input 
                       name="itemName" 
                       defaultValue={editingItem?.itemName} 
@@ -736,7 +736,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Item Code</label>
+                      <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Item Code</label>
                       <button
                         type="button"
                         onClick={() => {
@@ -778,7 +778,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Category</label>
+                      <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Category</label>
                       <span className="text-[10px] text-slate-400 font-semibold">{categories.length} available</span>
                     </div>
                     <select 
@@ -816,13 +816,13 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Unit of Measure</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Unit of Measure</label>
                     <input name="unitOfMeasure" defaultValue={editingItem?.unitOfMeasure} required className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" placeholder="e.g. Bags, Tonnes, Boxes" />
                   </div>
 
                   {/* Quantity Field (Replaces Reorder Quantity & Current Available) */}
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Quantity</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Quantity</label>
                     <input 
                       type="number" 
                       name="quantity" 
@@ -835,7 +835,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Min Stock Level</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Min Stock Level</label>
                     <input 
                       type="number" 
                       name="minStockLevel" 
@@ -848,7 +848,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Unit Cost (GHS)</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Unit Cost (GHS)</label>
                     <input 
                       type="number" 
                       step="0.01" 
@@ -862,7 +862,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Status</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Status</label>
                     <select name="status" defaultValue={editingItem?.status || 'IN STOCK'} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all appearance-none font-medium">
                       <option value="IN STOCK">IN STOCK</option>
                       <option value="LOW STOCK">LOW STOCK</option>
@@ -871,13 +871,13 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Supplier</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Supplier</label>
                     <input name="supplier" defaultValue={editingItem?.supplier} required className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" placeholder="e.g. RoofMaster Ltd" />
                   </div>
 
                   {/* Date Received Field (Replaces Last Restocked) */}
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Date Received</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Date Received</label>
                     <input 
                       type="date" 
                       name="lastRestocked" 
@@ -891,7 +891,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                 {/* Notes Section - Mandatory on edits */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider flex items-center gap-1.5">
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider flex items-center gap-1.5">
                       <span>Notes</span>
                       {editingItem ? (
                         <span className="text-rose-600 font-bold normal-case text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
@@ -921,7 +921,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     type="button" 
                     onClick={() => setIsModalOpen(false)} 
                     disabled={isSubmitting}
-                    className="flex-1 px-6 py-4 border-2 border-[#E2E8F0] rounded-2xl font-bold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                    className="flex-1 px-6 py-4 border border-slate-200/80 rounded-2xl font-bold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
                   >
                     Cancel
                   </button>

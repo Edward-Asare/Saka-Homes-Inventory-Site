@@ -199,8 +199,8 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Purchase Orders</h1>
-          <p className="text-[#64748B]">Tracker for material procurement and automatic store restocking.</p>
+          <h1 className="text-3xl font-heading font-semibold tracking-tight text-[#1E1B4B]">Purchase Orders</h1>
+          <p className="text-slate-500 text-sm mt-1">Tracker for material procurement and automatic store restocking.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button 
@@ -236,7 +236,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
       </div>
 
       {/* Date Filter & Preset Bar */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-bold text-[#1E1B4B]">
             <Filter className="w-4 h-4 text-[#E54818]" />
@@ -268,7 +268,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
         {/* Custom Date Pickers */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end pt-2 border-t border-slate-100">
           <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-[#E54818]" />
               From Order Date
             </label>
@@ -284,7 +284,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-[#E54818]" />
               To Order Date
             </label>
@@ -308,19 +308,19 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl border-2 border-[#E2E8F0] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[1200px]">
             <thead className="bg-[#F8FAFC]">
               <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">PO Number</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Item Details</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Supplier</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Qty</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Total Cost</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Dates</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Actions</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">PO Number</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Item Details</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Supplier</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Qty</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Total Cost</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Dates</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Status</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
@@ -337,7 +337,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                         By: <strong className="text-slate-700">{po.createdBy || 'admin'}</strong>
                       </span>
                       {po.inventoryUpdated && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md w-max">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md w-max">
                           <PackageCheck className="w-3 h-3" /> Restocked
                         </span>
                       )}
@@ -364,7 +364,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                   </td>
                   <td className="px-6 py-5">
                     <span className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase",
+                      "px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase",
                       po.status === 'COMPLETED' ? "bg-emerald-100 text-emerald-700" :
                       po.status === 'PENDING' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
                     )}>
@@ -428,11 +428,11 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="p-8 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
                 <div>
-                  <h2 className="text-2xl font-bold">New Purchase Order</h2>
+                  <h2 className="text-2xl font-heading font-semibold text-[#1E1B4B]">New Purchase Order</h2>
                   <p className="text-xs text-[#64748B] mt-0.5">Orders will automatically sync stock levels to Inventory & Dashboard upon fulfillment.</p>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
@@ -450,7 +450,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Select Existing Inventory Item (Optional)</label>
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Select Existing Inventory Item (Optional)</label>
                   <select 
                     value={selectedItemId}
                     onChange={(e) => handleSelectItem(e.target.value)}
@@ -467,40 +467,40 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">PO Number</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">PO Number</label>
                     <input name="poNumber" required defaultValue={`PO-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-mono font-bold" placeholder="e.g. PO-2026-001" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Item Code</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Item Code</label>
                     <input name="itemCode" required value={itemCode} onChange={(e) => setItemCode(e.target.value)} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-mono" placeholder="e.g. SKH-001" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Item Name</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Item Name</label>
                     <input name="itemName" required value={itemName} onChange={(e) => setItemName(e.target.value)} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold" placeholder="e.g. Portland Cement" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Supplier</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Supplier</label>
                     <input name="supplier" required value={supplier} onChange={(e) => setSupplier(e.target.value)} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" placeholder="e.g. RoofMaster Ltd" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Qty Ordered</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Qty Ordered</label>
                     <input type="number" name="qtyOrdered" required className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold" placeholder="e.g. 100" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Unit Cost (GHS)</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Unit Cost (GHS)</label>
                     <input type="number" step="0.01" name="unitCost" required value={unitCost} onChange={(e) => setUnitCost(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold" placeholder="e.g. 45.00" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Order Date</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Order Date</label>
                     <input type="date" name="orderDate" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Expected Date</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Expected Date</label>
                     <input type="date" name="expectedDate" required defaultValue={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Initial Order Status</label>
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Initial Order Status</label>
                   <select name="status" className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold">
                     <option value="PENDING">PENDING (Awaiting delivery)</option>
                     <option value="COMPLETED">COMPLETED (Received into inventory immediately)</option>
@@ -509,7 +509,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                 </div>
                 
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-4 border-2 border-[#E2E8F0] rounded-2xl font-bold text-[#64748B] hover:bg-[#F8FAFC]">Cancel</button>
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-4 border border-slate-200/80 rounded-2xl font-bold text-[#64748B] hover:bg-[#F8FAFC]">Cancel</button>
                   <button type="submit" className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
                     Create PO
                   </button>

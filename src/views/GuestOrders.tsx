@@ -219,7 +219,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
   return (
     <div className="space-y-8 pb-12">
       {/* Header Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#1E1B4B] via-[#2B1A70] to-[#120B29] rounded-3xl p-8 text-white shadow-xl shadow-purple-950/10 border border-purple-900/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#1E1B4B] via-[#2B1A70] to-[#120B29] rounded-2xl p-8 text-white shadow-xl shadow-purple-950/10 border border-purple-900/50">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-[#E54818]/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-8 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -228,7 +228,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/20 inline-block">
               <SakaHomesLogo variant="white" size="md" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-heading font-semibold tracking-tight text-white">
               Material Orders & Requisition
             </h1>
             <p className="text-purple-200/80 text-xs sm:text-sm max-w-xl">
@@ -239,15 +239,15 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
       </div>
 
       {/* Main Form: Order Builder */}
-      <div className="max-w-4xl mx-auto bg-white rounded-3xl p-7 md:p-8 border border-slate-200/80 shadow-xs space-y-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl p-7 md:p-8 border border-slate-200/80 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-orange-50 text-[#E54818] flex items-center justify-center font-bold">
                 <ShoppingBag className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-heading font-black text-slate-900">New Material Order</h2>
-                <p className="text-xs text-slate-500">Fill in the item and quantity to generate the WhatsApp dispatch message</p>
+                <h2 className="text-lg font-heading font-semibold text-slate-900">New Material Order</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Fill in the item and quantity to generate the WhatsApp dispatch message</p>
               </div>
             </div>
           </div>
@@ -272,7 +272,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
           <form onSubmit={handleSubmitOrder} className="space-y-5">
             {/* Item Selection */}
             <div className="space-y-2">
-              <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider flex items-center justify-between">
                 <span>Select Material Item</span>
                 <span className="text-[11px] font-normal text-slate-400">From catalog or custom</span>
               </label>
@@ -297,7 +297,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             {/* Custom Item Name (if selected or empty) */}
             {(selectedItemId === 'CUSTOM' || !selectedItemId) && (
               <div className="space-y-2">
-                <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider">
+                <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider">
                   Material / Item Name
                 </label>
                 <input
@@ -314,7 +314,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             {/* Quantity and Unit of Measure */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider">
+                <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider">
                   Quantity Needed *
                 </label>
                 <input
@@ -325,12 +325,12 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder="e.g. 50"
-                  className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-[#E54818] border-2 border-transparent focus:bg-white transition-all text-sm font-black text-slate-900"
+                  className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-[#E54818] border-2 border-transparent focus:bg-white transition-all text-sm font-bold text-slate-900"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider">
+                <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider">
                   Unit of Measure
                 </label>
                 <input
@@ -346,7 +346,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             {/* Site Location & Priority */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider">
+                <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider">
                   Site / Delivery Location
                 </label>
                 <input
@@ -359,7 +359,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider">
+                <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider">
                   Order Urgency
                 </label>
                 <select
@@ -376,7 +376,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
 
             {/* Additional Notes */}
             <div className="space-y-2">
-              <label className="text-xs font-extrabold uppercase text-[#1E1B4B] tracking-wider flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase text-[#1E1B4B] tracking-wider flex items-center justify-between">
                 <span>Additional Notes / Purpose</span>
                 <span className="text-[11px] font-normal text-slate-400">(Optional)</span>
               </label>
@@ -393,7 +393,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             <div className="pt-3">
               <button
                 type="submit"
-                className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-2xl font-heading font-black text-sm shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-3 group cursor-pointer"
+                className="w-full py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-lg font-semibold text-sm shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-3 group cursor-pointer"
               >
                 <MessageSquare className="w-5 h-5 text-white transition-transform group-hover:scale-110" />
                 <span>Send Order via WhatsApp to Manager ({MANAGER_PHONE_DISPLAY})</span>
