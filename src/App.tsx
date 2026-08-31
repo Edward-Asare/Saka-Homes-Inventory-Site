@@ -257,16 +257,16 @@ export default function App() {
   if (!appUser) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col lg:flex-row relative overflow-hidden">
-        {/* Left Column - Luxury Real Estate Split Hero Panel with Building Photo Background */}
-        <div className="hidden lg:flex lg:w-7/12 relative overflow-hidden flex-col justify-between p-12 lg:p-16 text-white border-r border-slate-900/40">
-          {/* Architectural Background Image */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 scale-105"
+        {/* Left Column - Brand panel with architectural watermark (login card stays clean) */}
+        <div className="hidden lg:flex lg:w-7/12 relative overflow-hidden flex-col justify-between p-12 lg:p-16 text-white border-r border-slate-900/40 bg-[#120E2B]">
+          {/* Architectural watermark — left panel only */}
+          <div
+            className="absolute inset-0 bg-cover bg-[center_30%] pointer-events-none opacity-[0.42]"
             style={{ backgroundImage: `url(${loginBg})` }}
+            aria-hidden="true"
           />
-          {/* Elegant Dark Gradient & Brand Vignette Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-slate-950/70 to-slate-950/40 backdrop-blur-[0.5px]" />
-          <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-[#E54818]/25 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#120E2B] via-[#120E2B]/70 to-[#120E2B]/35 pointer-events-none" />
+          <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-[#E54818]/20 rounded-full blur-3xl pointer-events-none" />
 
           {/* Top Brand Header */}
           <div className="relative z-10">
@@ -295,13 +295,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Column - Unified Credentials Login Card with Subtle Architectural Watermark */}
+        {/* Right Column - Credentials login card (no watermark) */}
         <div className="w-full lg:w-5/12 flex items-center justify-center p-4 sm:p-8 lg:p-12 bg-[#FAF8F5] min-h-screen relative">
-          {/* Subtle Watermark on background */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center opacity-[0.035] pointer-events-none"
-            style={{ backgroundImage: `url(${loginBg})` }}
-          />
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
