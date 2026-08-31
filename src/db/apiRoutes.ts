@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs } from './index';
-import { requireAuth, requireRole, generateAuthToken, syncOrGetSupabaseProfile } from '../middleware/auth';
+import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs, generateSecureId } from './index';
+import { requireAuth, requireRole, requirePasswordChanged, generateAuthToken, syncOrGetSupabaseProfile, verifySupabaseAccessToken } from '../middleware/auth';
 import { 
   validateRequest, 
   idParamSchema, 
-  loginSchema, 
+  loginSchema,
+  supabaseSyncSchema,
   changePasswordSchema,
   createUserSchema,
   updateUserRoleSchema,
@@ -15,7 +15,9 @@ import {
   createStockMovementSchema, 
   createPOSchema, 
   updatePOStatusSchema, 
-  createCategorySchema 
+  createCategorySchema,
+  activityLogsQuerySchema,
+  cleanupLogsSchema
 } from '../middleware/validation';
 
 const router = Router();
@@ -50,22 +52,22 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
 
     if (result.rows.length > 0) {
       const candidate = result.rows[0];
-      if (!candidate.is_active) {
-        await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
-          targetUserId: candidate.id,
-          targetUsername: candidate.username,
-          details: 'Login rejected: account is deactivated',
-          ipAddress: clientIp
-        });
-        return res.status(403).json({
-          error: 'Your account has been deactivated. Please contact your system administrator.'
-        });
-      }
 
       // If user is locally password-managed (not managed purely via Supabase OAuth/Auth)
       if (candidate.password_hash !== 'SUPABASE_AUTH_MANAGED' && candidate.password_hash !== 'AUTH_MANAGED') {
         const passwordMatch = await comparePassword(password, candidate.password_hash);
         if (passwordMatch) {
+          if (!candidate.is_active) {
+            await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
+              targetUserId: candidate.id,
+              targetUsername: candidate.username,
+              details: 'Login rejected: account is deactivated',
+              ipAddress: clientIp
+            });
+            return res.status(403).json({
+              error: 'Your account has been deactivated. Please contact your system administrator.'
+            });
+          }
           authenticatedUser = candidate;
           // Auto-upgrade legacy hash if needed
           if (!candidate.password_hash.startsWith('$2')) {
@@ -76,32 +78,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
       }
     }
 
-    // 2. Check if it's the configured initial admin attempting login before first DB bootstrap
-    if (!authenticatedUser) {
-      const initialAdminUser = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
-      const initialAdminPass = process.env.INITIAL_ADMIN_PASSWORD;
-      const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
-
-      if (initialAdminPass && trimmedUsername === initialAdminUser && password === initialAdminPass) {
-        const adminHash = await hashPassword(initialAdminPass);
-        const existingAdmin = await pool.query("SELECT id FROM users WHERE id = 'usr_admin_01' OR LOWER(username) = $1 LIMIT 1", [initialAdminUser]);
-        if (existingAdmin.rows.length > 0) {
-          await pool.query(`
-            UPDATE users SET username = $1, password_hash = $2, is_active = TRUE, role = 'ADMIN'
-            WHERE id = $3
-          `, [initialAdminUser, adminHash, existingAdmin.rows[0].id]);
-        } else {
-          await pool.query(`
-            INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-            VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, FALSE, 1)
-          `, [initialAdminUser, adminHash, initialAdminName]);
-        }
-        const adminRes = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', [initialAdminUser]);
-        authenticatedUser = adminRes.rows[0];
-      }
-    }
-
-    // 3. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
+    // 2. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
     if (!authenticatedUser) {
       const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
       const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -128,9 +105,19 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
                 id: data.user.id,
                 email: data.user.email,
                 fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
-                role: data.user.user_metadata?.role,
                 userMetadata: data.user.user_metadata
               });
+              if (synced.isActive === false) {
+                await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
+                  targetUserId: synced.id,
+                  targetUsername: synced.username,
+                  details: 'Login rejected: account is deactivated',
+                  ipAddress: clientIp
+                });
+                return res.status(403).json({
+                  error: 'Your account has been deactivated. Please contact your system administrator.'
+                });
+              }
               authenticatedUser = synced;
             }
           }
@@ -147,7 +134,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
         ipAddress: clientIp
       });
       return res.status(401).json({
-        error: 'Invalid username or password. Please verify your credentials or check your Supabase Auth dashboard.'
+        error: 'Invalid username or password.'
       });
     }
 
@@ -209,42 +196,32 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
   }
 });
 
-// POST /api/auth/supabase-sync - Synchronize and retrieve user profile after Supabase Auth login
-router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
+// POST /api/auth/supabase-sync - Synchronize profile after a verified Supabase Auth login
+router.post('/auth/supabase-sync', validateRequest({ body: supabaseSyncSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
     const accessToken = req.body?.accessToken || bearerToken;
-    const passedUser = req.body?.user;
 
-    let userId = passedUser?.id;
-    let userEmail = passedUser?.email;
-    let userMetadata = passedUser?.user_metadata || {};
-    let fullName = userMetadata?.full_name || userMetadata?.name || passedUser?.fullName;
-
-    if (!userId && accessToken) {
-      const decoded: any = jwt.decode(accessToken);
-      if (decoded) {
-        userId = decoded.sub || decoded.userId || decoded.id;
-        userEmail = decoded.email || decoded.username || userEmail;
-        userMetadata = decoded.user_metadata || userMetadata;
-        fullName = fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name || decoded.fullName;
-      }
+    if (!accessToken) {
+      return res.status(401).json({
+        error: 'Unable to synchronize Supabase user: missing access token.'
+      });
     }
 
-    if (!userId) {
+    const verified = await verifySupabaseAccessToken(accessToken);
+    if (!verified) {
       return res.status(401).json({
-        error: 'Unable to synchronize Supabase user: missing user identifier or token.'
+        error: 'Invalid or expired Supabase access token.'
       });
     }
 
     const profile = await syncOrGetSupabaseProfile({
-      id: userId,
-      email: userEmail,
-      fullName: fullName,
-      role: userMetadata?.role,
-      userMetadata: userMetadata
+      id: verified.id,
+      email: verified.email,
+      fullName: verified.fullName,
+      userMetadata: verified.userMetadata
     });
 
     if (profile.isActive === false) {
@@ -253,7 +230,6 @@ router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate internal app session token
     const token = generateAuthToken({
       id: profile.id,
       username: profile.username,
@@ -261,6 +237,8 @@ router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
       fullName: profile.fullName,
       tokenVersion: profile.tokenVersion
     });
+
+    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [profile.id]).catch(() => {});
 
     await recordSecurityAudit(pool, 'LOGIN_SUCCESS', {
       actorId: profile.id,
@@ -305,12 +283,19 @@ router.post('/auth/change-password', requireAuth, validateRequest({ body: change
 
     const user = userResult.rows[0];
 
-    // If password change is NOT forced by admin, require current password verification
-    if (!user.must_change_password && currentPassword) {
+    // Always require current password unless an administrator forced a password change
+    if (!user.must_change_password) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required.' });
+      }
       const match = await comparePassword(currentPassword, user.password_hash);
       if (!match) {
         return res.status(400).json({ error: 'Current password does not match.' });
       }
+    }
+
+    if (currentPassword && newPassword && currentPassword === newPassword) {
+      return res.status(400).json({ error: 'New password must be different from the current password.' });
     }
 
     const newHash = await hashPassword(newPassword);
@@ -465,7 +450,7 @@ router.get('/users/audit-logs', requireAuth, requireRole('ADMIN'), async (req: R
 });
 
 // POST /api/users - Create new user with generated temporary password (ADMIN only)
-router.post('/users', requireAuth, requireRole('ADMIN'), validateRequest({ body: createUserSchema }), async (req: Request, res: Response) => {
+router.post('/users', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ body: createUserSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { username, role, fullName } = req.body;
@@ -476,7 +461,7 @@ router.post('/users', requireAuth, requireRole('ADMIN'), validateRequest({ body:
       return res.status(400).json({ error: `Username "${cleanUsername}" already exists.` });
     }
 
-    const id = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const id = generateSecureId('usr');
     
     // Generate secure random temporary password on server
     const temporaryPassword = generateTemporaryPassword();
@@ -535,7 +520,7 @@ router.post('/users', requireAuth, requireRole('ADMIN'), validateRequest({ body:
 });
 
 // PATCH /api/users/:id/role - Update user role (ADMIN only)
-router.patch('/users/:id/role', requireAuth, requireRole('ADMIN'), validateRequest({ params: idParamSchema, body: updateUserRoleSchema }), async (req: Request, res: Response) => {
+router.patch('/users/:id/role', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema, body: updateUserRoleSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { id } = req.params;
@@ -606,7 +591,7 @@ router.patch('/users/:id/role', requireAuth, requireRole('ADMIN'), validateReque
 });
 
 // PATCH /api/users/:id/status - Activate or Deactivate user (ADMIN only)
-router.patch('/users/:id/status', requireAuth, requireRole('ADMIN'), validateRequest({ params: idParamSchema, body: updateUserStatusSchema }), async (req: Request, res: Response) => {
+router.patch('/users/:id/status', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema, body: updateUserStatusSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { id } = req.params;
@@ -679,7 +664,7 @@ router.patch('/users/:id/status', requireAuth, requireRole('ADMIN'), validateReq
 });
 
 // POST /api/users/:id/reset-password - Reset password to a new temporary password (ADMIN only)
-router.post('/users/:id/reset-password', requireAuth, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.post('/users/:id/reset-password', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { id } = req.params;
@@ -738,7 +723,7 @@ router.post('/users/:id/reset-password', requireAuth, requireRole('ADMIN'), vali
 });
 
 // DELETE /api/users/:id - Permanently delete a user account (ADMIN only)
-router.delete('/users/:id', requireAuth, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.delete('/users/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { id } = req.params;
@@ -946,7 +931,7 @@ router.get('/inventory', requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/inventory (ADMIN & MANAGER)
-router.post('/inventory', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createInventoryItemSchema }), async (req: Request, res: Response) => {
+router.post('/inventory', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createInventoryItemSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -982,7 +967,18 @@ router.post('/inventory', requireAuth, requireRole('ADMIN', 'MANAGER'), validate
       });
     }
 
-    const id = `item_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const categoryExists = await client.query(
+      'SELECT id FROM categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM($1)) LIMIT 1',
+      [category]
+    );
+    if (categoryExists.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Category "${category}" does not exist. Create the category before adding items.`
+      });
+    }
+
+    const id = generateSecureId('item');
     
     // Support quantity parameter, falling back to currentStock or reorderQty
     const parsedQty = quantity !== undefined ? Number(quantity) : (currentStock !== undefined ? Number(currentStock) : Number(reorderQty || 0));
@@ -1027,7 +1023,7 @@ router.post('/inventory', requireAuth, requireRole('ADMIN', 'MANAGER'), validate
           transaction_type, reference_id, notes, performed_by, created_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
       `, [
-        `tx_${Date.now()}`, txCode, id, currentStock, 0, currentStock,
+        generateSecureId('tx'), txCode, id, currentStock, 0, currentStock,
         'INITIAL_STOCK', id, 'Initial stock entry upon creation', createdBy
       ]);
     }
@@ -1074,7 +1070,7 @@ router.post('/inventory', requireAuth, requireRole('ADMIN', 'MANAGER'), validate
 });
 
 // PUT /api/inventory/:id (ADMIN & MANAGER)
-router.put('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema, body: updateInventoryItemSchema }), async (req: Request, res: Response) => {
+router.put('/inventory/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema, body: updateInventoryItemSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1108,6 +1104,18 @@ router.put('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), valid
     }
 
     const category = body.category ?? prev.category;
+    if (category && String(category).toLowerCase() !== String(prev.category).toLowerCase()) {
+      const categoryExists = await client.query(
+        'SELECT id FROM categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM($1)) LIMIT 1',
+        [category]
+      );
+      if (categoryExists.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `Category "${category}" does not exist. Create the category before assigning items to it.`
+        });
+      }
+    }
     const unitOfMeasure = body.unitOfMeasure ?? prev.unit_of_measure;
     const minStockLevel = body.minStockLevel !== undefined ? Number(body.minStockLevel) : Number(prev.min_stock_level);
     const maxStockLevel = body.maxStockLevel !== undefined ? Number(body.maxStockLevel) : Number(prev.max_stock_level);
@@ -1164,7 +1172,7 @@ router.put('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), valid
           transaction_type, reference_id, notes, performed_by, created_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
       `, [
-        `tx_${Date.now()}`, txCode, id, changeQty, prev.current_stock, currentStock,
+        generateSecureId('tx'), txCode, id, changeQty, prev.current_stock, currentStock,
         'MANUAL_UPDATE', id, 'Direct stock adjustment via inventory edit', req.user?.username || 'system'
       ]);
     }
@@ -1237,7 +1245,7 @@ router.put('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), valid
 });
 
 // DELETE /api/inventory/:id (ADMIN & MANAGER)
-router.delete('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.delete('/inventory/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1301,7 +1309,7 @@ router.get('/stock-movements', requireAuth, async (req: Request, res: Response) 
 
 // POST /api/stock-movements (ADMIN & MANAGER)
 // ACID Transaction with Row-Level Locking (`FOR UPDATE`) to prevent negative inventory & race conditions
-router.post('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createStockMovementSchema }), async (req: Request, res: Response) => {
+router.post('/stock-movements', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createStockMovementSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1402,7 +1410,7 @@ router.post('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), va
     await client.query(updateSql, updatePayload);
 
     // 2. Insert Movement Record
-    const movId = `mov_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const movId = generateSecureId('mov');
     const finalMovCode = movementCode || `MOV-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const createdBy = req.user?.username || 'system';
 
@@ -1420,7 +1428,7 @@ router.post('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), va
     ]);
 
     // 3. Insert into Immutable Audit Ledger (inventory_transactions)
-    const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const txId = generateSecureId('tx');
     const txCode = `TX-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
     await client.query(`
@@ -1482,14 +1490,14 @@ router.post('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), va
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Stock movement transaction error:', error);
-    res.status(500).json({ error: error.message || 'Failed to execute stock movement transaction' });
+    res.status(500).json({ error: 'Failed to execute stock movement transaction' });
   } finally {
     client.release();
   }
 });
 
 // DELETE /api/stock-movements/:id (ADMIN & MANAGER)
-router.delete('/stock-movements/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.delete('/stock-movements/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await pool.query('SELECT movement_code, item_code, item_name, quantity, movement_type FROM stock_movements WHERE id = $1', [id]);
@@ -1536,7 +1544,7 @@ router.get('/purchase-orders', requireAuth, async (req: Request, res: Response) 
 });
 
 // POST /api/purchase-orders (ADMIN & MANAGER)
-router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createPOSchema }), async (req: Request, res: Response) => {
+router.post('/purchase-orders', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createPOSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1551,7 +1559,6 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
       unitCost,
       orderDate,
       expectedDate,
-      status,
       notes
     } = req.body;
 
@@ -1583,8 +1590,10 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
       }
     }
 
+    // New purchase orders always start as PENDING. Completing a PO must go through the status endpoint.
+    const status = 'PENDING';
+    const isCompleted = false;
     let inventoryUpdated = false;
-    const isCompleted = status === 'COMPLETED';
     const createdBy = req.user?.username || 'system';
 
     if (itemRow && targetItemId) {
@@ -1608,7 +1617,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
 
         // Stock movement entry
         const movCode = `MOV-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-        const movId = `mov_${Date.now()}`;
+        const movId = generateSecureId('mov');
         await client.query(`
           INSERT INTO stock_movements (
             id, movement_code, movement_type, item_id, item_code, item_name, category,
@@ -1629,7 +1638,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
             transaction_type, reference_id, notes, performed_by, created_at
           ) VALUES ($1, $2, $3, $4, $5, $6, 'PO_FULFILLMENT', $7, $8, $9, CURRENT_TIMESTAMP)
         `, [
-          `tx_${Date.now()}`, txCode, targetItemId, numQty, prevStock, newStock,
+          generateSecureId('tx'), txCode, targetItemId, numQty, prevStock, newStock,
           poNumber, `PO ${poNumber} fulfilled`, createdBy
         ]);
 
@@ -1643,7 +1652,13 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
       const minStockLevel = 10;
       let initialStatus = initialStock <= 0 ? 'OUT OF STOCK' : (initialStock <= minStockLevel ? 'LOW STOCK' : 'IN STOCK');
 
-      targetItemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await client.query(`
+        INSERT INTO categories (id, category_name, description, item_count, created_by, created_at, updated_at)
+        VALUES ($1, $2, 'Auto-created from purchase order', 0, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (category_name) DO NOTHING
+      `, [generateSecureId('cat'), category, createdBy]);
+
+      targetItemId = generateSecureId('item');
       
       await client.query(`
         INSERT INTO inventory_items (
@@ -1666,7 +1681,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
             date, notes, created_by, created_at, updated_at
           ) VALUES ($1, $2, 'RESTOCKED', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [
-          `mov_${Date.now()}`, movCode, targetItemId, itemCode || 'SKH-ITEM', itemName, category,
+          generateSecureId('mov'), movCode, targetItemId, itemCode || 'SKH-ITEM', itemName, category,
           numQty, unitOfMeasure, 0, initialStock, `Store Restock (PO: ${poNumber})`, supplier || 'Supplier',
           orderDate, `Auto-restocked via Purchase Order ${poNumber}`, createdBy
         ]);
@@ -1678,7 +1693,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
             transaction_type, reference_id, notes, performed_by, created_at
           ) VALUES ($1, $2, $3, $4, $5, $6, 'PO_FULFILLMENT', $7, $8, $9, CURRENT_TIMESTAMP)
         `, [
-          `tx_${Date.now()}`, txCode, targetItemId, numQty, 0, initialStock,
+          generateSecureId('tx'), txCode, targetItemId, numQty, 0, initialStock,
           poNumber, `PO ${poNumber} fulfilled for new item`, createdBy
         ]);
 
@@ -1688,7 +1703,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
       await syncCategoryCount(client, category);
     }
 
-    const poId = `po_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const poId = generateSecureId('po');
     const poRes = await client.query(`
       INSERT INTO purchase_orders (
         id, po_number, item_id, item_code, item_name, supplier, qty_ordered, unit_cost,
@@ -1740,7 +1755,7 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
 });
 
 // PATCH /api/purchase-orders/:id/status (ADMIN & MANAGER)
-router.patch('/purchase-orders/:id/status', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema, body: updatePOStatusSchema }), async (req: Request, res: Response) => {
+router.patch('/purchase-orders/:id/status', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema, body: updatePOStatusSchema }), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1801,7 +1816,7 @@ router.patch('/purchase-orders/:id/status', requireAuth, requireRole('ADMIN', 'M
             date, notes, created_by, created_at, updated_at
           ) VALUES ($1, $2, 'RESTOCKED', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `, [
-          `mov_${Date.now()}`, movCode, targetItemId, poData.item_code, poData.item_name, itemRow.category || 'General Materials',
+          generateSecureId('mov'), movCode, targetItemId, poData.item_code, poData.item_name, itemRow.category || 'General Materials',
           qtyOrdered, itemRow.unit_of_measure || 'Units', prevStock, newStock, `Store Restock (PO: ${poData.po_number})`,
           poData.supplier || 'Supplier', poData.order_date, `Auto-restocked on PO fulfillment (${poData.po_number})`, req.user?.username || poData.created_by
         ]);
@@ -1813,7 +1828,7 @@ router.patch('/purchase-orders/:id/status', requireAuth, requireRole('ADMIN', 'M
             transaction_type, reference_id, notes, performed_by, created_at
           ) VALUES ($1, $2, $3, $4, $5, $6, 'PO_FULFILLMENT', $7, $8, $9, CURRENT_TIMESTAMP)
         `, [
-          `tx_${Date.now()}`, txCode, targetItemId, qtyOrdered, prevStock, newStock,
+          generateSecureId('tx'), txCode, targetItemId, qtyOrdered, prevStock, newStock,
           poData.po_number, `Status updated to COMPLETED for PO ${poData.po_number}`, req.user?.username || poData.created_by
         ]);
 
@@ -1883,7 +1898,7 @@ router.patch('/purchase-orders/:id/status', requireAuth, requireRole('ADMIN', 'M
 });
 
 // DELETE /api/purchase-orders/:id (ADMIN & MANAGER)
-router.delete('/purchase-orders/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.delete('/purchase-orders/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await pool.query('SELECT po_number, supplier, qty_ordered, status FROM purchase_orders WHERE id = $1', [id]);
@@ -1932,7 +1947,7 @@ router.get('/categories', requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/categories (ADMIN & MANAGER)
-router.post('/categories', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createCategorySchema }), async (req: Request, res: Response) => {
+router.post('/categories', requireAuth, requirePasswordChanged, requireRole('ADMIN', 'MANAGER'), validateRequest({ body: createCategorySchema }), async (req: Request, res: Response) => {
   try {
     const {
       categoryName,
@@ -1953,7 +1968,7 @@ router.post('/categories', requireAuth, requireRole('ADMIN', 'MANAGER'), validat
       });
     }
 
-    const id = `cat_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const id = generateSecureId('cat');
     const createdBy = req.user?.username || 'system';
 
     const result = await pool.query(`
@@ -1988,7 +2003,7 @@ router.post('/categories', requireAuth, requireRole('ADMIN', 'MANAGER'), validat
 });
 
 // DELETE /api/categories/:id (ADMIN & MANAGER)
-router.delete('/categories/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
+router.delete('/categories/:id', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await pool.query('SELECT category_name FROM categories WHERE id = $1', [id]);
@@ -1996,6 +2011,16 @@ router.delete('/categories/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), v
       return res.status(404).json({ error: 'Category not found' });
     }
     const catName = existing.rows[0].category_name;
+
+    const inUse = await pool.query(
+      'SELECT COUNT(*)::int as count FROM inventory_items WHERE LOWER(TRIM(category)) = LOWER(TRIM($1))',
+      [catName]
+    );
+    if ((inUse.rows[0]?.count || 0) > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete category with active items. Please reassign items first.'
+      });
+    }
 
     await pool.query('DELETE FROM categories WHERE id = $1', [id]);
 
@@ -2025,7 +2050,7 @@ router.delete('/categories/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), v
 // ==================== IMMUTABLE AUDIT LEDGER ====================
 
 // GET /api/audit-transactions (ADMIN, GUEST)
-router.get('/audit-transactions', requireAuth, async (req: Request, res: Response) => {
+router.get('/audit-transactions', requireAuth, requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
       SELECT t.*, i.item_name, i.item_code 
@@ -2044,7 +2069,7 @@ router.get('/audit-transactions', requireAuth, async (req: Request, res: Respons
 // ==================== ADMIN & MANAGER ACTIVITY LOGS ====================
 
 // GET /api/activity-logs (ADMIN & MANAGER)
-router.get('/activity-logs', requireAuth, requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response) => {
+router.get('/activity-logs', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ query: activityLogsQuerySchema }), async (req: Request, res: Response) => {
   try {
     const {
       module,
@@ -2077,14 +2102,20 @@ router.get('/activity-logs', requireAuth, requireRole('ADMIN', 'MANAGER'), async
     }
 
     if (startDate) {
+      const parsedStart = new Date(startDate);
+      if (Number.isNaN(parsedStart.getTime())) {
+        return res.status(400).json({ error: 'Invalid startDate.' });
+      }
       conditions.push(`created_at >= $${paramIndex++}`);
-      values.push(new Date(startDate).toISOString());
+      values.push(parsedStart.toISOString());
     }
 
     if (endDate) {
-      conditions.push(`created_at <= $${paramIndex++}`);
-      // End of that day
       const endDateTime = new Date(endDate);
+      if (Number.isNaN(endDateTime.getTime())) {
+        return res.status(400).json({ error: 'Invalid endDate.' });
+      }
+      conditions.push(`created_at <= $${paramIndex++}`);
       endDateTime.setHours(23, 59, 59, 999);
       values.push(endDateTime.toISOString());
     }
@@ -2218,9 +2249,9 @@ router.get('/activity-logs/retention-info', requireAuth, requireRole('ADMIN', 'M
 });
 
 // POST /api/activity-logs/cleanup (ADMIN ONLY)
-router.post('/activity-logs/cleanup', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+router.post('/activity-logs/cleanup', requireAuth, requirePasswordChanged, requireRole('ADMIN'), validateRequest({ body: cleanupLogsSchema }), async (req: Request, res: Response) => {
   try {
-    const days = parseInt(req.body.retentionDays, 10) || 90;
+    const days = req.body.retentionDays ?? 90;
     const result = await purgeOldLogs(pool, days);
     
     await recordActivityLog(pool, {

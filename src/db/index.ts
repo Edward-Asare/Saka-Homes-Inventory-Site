@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 
 const { Pool } = pg;
 
-const BCRYPT_SALT_ROUNDS = 10;
+const BCRYPT_SALT_ROUNDS = 12;
 
 /**
  * Strong password hashing using bcrypt with 10 salt rounds.
@@ -36,13 +36,12 @@ export async function comparePassword(password: string, storedHash: string): Pro
   // Legacy fallback for previous PBKDF2 hash (auto-migrated upon successful login/password change)
   try {
     const legacyHash = crypto.pbkdf2Sync(password, 'saka_homes_salt_2026', 10000, 64, 'sha512').toString('hex');
-    if (legacyHash === storedHash) return true;
+    const storedBuf = Buffer.from(String(storedHash), 'hex');
+    const computedBuf = Buffer.from(legacyHash, 'hex');
+    if (storedBuf.length > 0 && storedBuf.length === computedBuf.length && crypto.timingSafeEqual(storedBuf, computedBuf)) {
+      return true;
+    }
   } catch {}
-
-  // Direct match fallback for legacy raw seeds
-  if (storedHash === password) {
-    return true;
-  }
 
   return false;
 }
@@ -70,8 +69,19 @@ export function generateTemporaryPassword(): string {
     result += allChars.charAt(crypto.randomInt(0, allChars.length));
   }
 
-  // Shuffle the result array
-  return result.split('').sort(() => 0.5 - Math.random()).join('');
+  const chars = result.split('');
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+/**
+ * Cryptographically strong resource IDs (replaces Math.random-based identifiers).
+ */
+export function generateSecureId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
 /**
@@ -160,6 +170,28 @@ export async function recordActivityLog(
   }
 }
 
+/**
+ * TLS verification for hosted Postgres.
+ * Render / Supabase / Neon terminate TLS with a chain Node does not always
+ * trust. Default to encrypted-but-unverified there unless explicitly overridden.
+ */
+export function shouldRejectUnauthorizedTls(connectionHint: string): boolean {
+  const explicit = process.env.PGSSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
+  if (explicit === 'false' || explicit === '0') return false;
+  if (explicit === 'true' || explicit === '1') return true;
+
+  const hint = (connectionHint || '').toLowerCase();
+  const managedHost =
+    Boolean(process.env.RENDER) ||
+    hint.includes('render.com') ||
+    hint.includes('supabase.com') ||
+    hint.includes('neon.tech') ||
+    hint.includes('amazonaws.com');
+
+  if (managedHost) return false;
+  return true;
+}
+
 function buildPoolConfig(): PoolConfig {
   const databaseUrl = process.env.DATABASE_URL?.trim();
 
@@ -172,10 +204,11 @@ function buildPoolConfig(): PoolConfig {
 
     const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
     const isRemote = !isLocalhost || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+    const rejectUnauthorized = shouldRejectUnauthorizedTls(url);
 
     return {
       connectionString: url,
-      ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+      ...(isRemote ? { ssl: { rejectUnauthorized } } : {}),
       max: 10,
       idleTimeoutMillis: 15000,
       connectionTimeoutMillis: 10000,
@@ -191,6 +224,7 @@ function buildPoolConfig(): PoolConfig {
 
   const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   const isRemote = (!isLocalhost && Boolean(process.env.PGHOST)) || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+  const rejectUnauthorized = shouldRejectUnauthorizedTls(host);
 
   return {
     host,
@@ -198,7 +232,7 @@ function buildPoolConfig(): PoolConfig {
     user,
     password,
     database,
-    ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+    ...(isRemote ? { ssl: { rejectUnauthorized } } : {}),
     max: 10,
     idleTimeoutMillis: 15000,
     connectionTimeoutMillis: 10000,
@@ -258,45 +292,53 @@ export async function initializeDatabase() {
       );
     `);
 
-    // Bootstrap Initial System Accounts (Admin, Guest)
-    // We safely upsert default accounts with fresh, valid bcrypt hashes and active status
+    // Bootstrap initial accounts only when they do not already exist.
+    // Existing password hashes, roles, and must_change_password flags are never overwritten.
     const initialAdminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
-    const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
     const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
-    const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD || 'guest123';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    const adminHash = await hashPassword(initialAdminPassword);
-    const guestHash = await hashPassword(initialGuestPassword);
+    const existingAdmin = await client.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR id = $2 LIMIT 1',
+      [initialAdminUsername, 'usr_admin_01']
+    );
 
-    const defaultAccounts = [
-      { id: 'usr_admin_01', username: initialAdminUsername, hash: adminHash, role: 'ADMIN', name: initialAdminName },
-      { id: 'usr_guest_01', username: 'guest@sakainventory', hash: guestHash, role: 'GUEST', name: 'Guest User' },
-      { id: 'usr_admin_alias', username: 'admin', hash: adminHash, role: 'ADMIN', name: initialAdminName },
-      { id: 'usr_guest_alias', username: 'guest', hash: guestHash, role: 'GUEST', name: 'Guest User' }
-    ];
-
-    for (const acc of defaultAccounts) {
-      // Find existing record by username or id
-      const existing = await client.query(
-        'SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR id = $2 LIMIT 1',
-        [acc.username, acc.id]
-      );
-
-      if (existing.rows.length > 0) {
-        await client.query(`
-          UPDATE users 
-          SET username = $1, password_hash = $2, role = $3, full_name = $4, is_active = TRUE, must_change_password = FALSE
-          WHERE id = $5
-        `, [acc.username, acc.hash, acc.role, acc.name, existing.rows[0].id]);
-      } else {
-        await client.query(`
-          INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-          VALUES ($1, $2, $3, $4, $5, TRUE, FALSE, 1)
-        `, [acc.id, acc.username, acc.hash, acc.role, acc.name]);
+    if (existingAdmin.rows.length === 0) {
+      let initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+      let forcePasswordChange = true;
+      if (!initialAdminPassword) {
+        if (isProduction) {
+          initialAdminPassword = crypto.randomBytes(18).toString('base64url');
+          console.warn('[BOOTSTRAP] INITIAL_ADMIN_PASSWORD was not set. Generated a one-time admin password. Store it securely; it will not be shown again.');
+          console.warn(`[BOOTSTRAP] Admin username: ${initialAdminUsername}`);
+          console.warn(`[BOOTSTRAP] One-time admin password: ${initialAdminPassword}`);
+        } else {
+          initialAdminPassword = 'admin123';
+          console.warn('[BOOTSTRAP] Using development default admin password. Set INITIAL_ADMIN_PASSWORD before deploying.');
+        }
       }
+      const adminHash = await hashPassword(initialAdminPassword);
+      await client.query(`
+        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
+        VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, $4, 1)
+      `, [initialAdminUsername, adminHash, initialAdminName, forcePasswordChange]);
+      console.log(`[BOOTSTRAP] Created initial admin account (${initialAdminUsername}). Password change required on first login.`);
     }
 
-    console.log(`[BOOTSTRAP] System accounts verified and active (${initialAdminUsername}, guest@sakainventory).`);
+    const existingGuest = await client.query(
+      "SELECT id FROM users WHERE LOWER(username) = 'guest@sakainventory' OR id = 'usr_guest_01' LIMIT 1"
+    );
+    const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD || (isProduction ? '' : 'guest123');
+    if (existingGuest.rows.length === 0 && initialGuestPassword) {
+      const guestHash = await hashPassword(initialGuestPassword);
+      await client.query(`
+        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
+        VALUES ('usr_guest_01', 'guest@sakainventory', $1, 'GUEST', 'Guest User', TRUE, FALSE, 1)
+      `, [guestHash]);
+      console.log('[BOOTSTRAP] Created guest@sakainventory account.');
+    }
+
+    console.log(`[BOOTSTRAP] System accounts verified (${initialAdminUsername}). Existing credentials were not modified.`);
 
     // 1. Categories Table
     await client.query(`

@@ -1,11 +1,30 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { initializeDatabase, purgeOldLogs, pool } from "./src/db/index";
 import apiRoutes from "./src/db/apiRoutes";
+
+function resolveDistPath(): string {
+  const candidates: string[] = [];
+  try {
+    candidates.push(path.dirname(fileURLToPath(import.meta.url)));
+  } catch {
+    // CJS bundle may not expose import.meta.url
+  }
+  candidates.push(path.join(process.cwd(), "dist"), process.cwd());
+
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "index.html"))) {
+      return dir;
+    }
+  }
+  return path.join(process.cwd(), "dist");
+}
 
 /**
  * Parses and resolves the 'trust proxy' setting in a deployment-aware manner.
@@ -38,8 +57,8 @@ function resolveTrustProxySetting(): boolean | number | string {
     return envVal;
   }
 
-  // Auto-detection: Cloud Run injects K_SERVICE, standard dev container sets container environment
-  const isCloudRunOrContainer = Boolean(process.env.K_SERVICE) || Boolean(process.env.CONTAINER);
+  // Auto-detection: Cloud Run injects K_SERVICE; Render injects RENDER; containers set CONTAINER
+  const isCloudRunOrContainer = Boolean(process.env.K_SERVICE) || Boolean(process.env.CONTAINER) || Boolean(process.env.RENDER);
   if (isCloudRunOrContainer) {
     return 1;
   }
@@ -60,7 +79,14 @@ function getSecureClientIp(req: Request): string {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  if (process.env.NODE_ENV === "production") {
+    const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+    if (!jwtSecret || jwtSecret.trim() === "") {
+      throw new Error("Refusing to start: JWT_SECRET (or SUPABASE_JWT_SECRET) must be set in production.");
+    }
+  }
 
   // Configure Trust Proxy dynamically based on deployment environment
   const trustProxySetting = resolveTrustProxySetting();
@@ -68,28 +94,65 @@ async function startServer() {
 
   console.log(`[PROXY CONFIG] Express 'trust proxy' configured as:`, trustProxySetting);
 
-  // Security Headers via Helmet (configured to allow iframe rendering for preview)
+  const isProduction = process.env.NODE_ENV === "production";
+  const supabaseOrigin = (() => {
+    try {
+      const raw = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+      return raw ? new URL(raw).origin : "";
+    } catch {
+      return "";
+    }
+  })();
+
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Allows Vite inline scripts and external fonts
+      contentSecurityPolicy: isProduction
+        ? {
+            useDefaults: true,
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+              fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+              imgSrc: ["'self'", "data:", "blob:"],
+              connectSrc: ["'self'", supabaseOrigin].filter(Boolean) as string[],
+              objectSrc: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              frameAncestors: ["'none'"],
+              upgradeInsecureRequests: null
+            }
+          }
+        : false,
       crossOriginEmbedderPolicy: false,
-      frameguard: false // Enables iframe preview in AI Studio
+      frameguard: isProduction ? { action: "deny" } : false,
+      referrerPolicy: { policy: "no-referrer" },
+      hidePoweredBy: true
     })
   );
 
-  // Cross-Origin Resource Sharing (CORS)
+  const corsOrigins = (process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: true,
+      origin: corsOrigins.length
+        ? corsOrigins.includes("*")
+          ? true
+          : corsOrigins
+        : isProduction
+          ? false
+          : true,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "Accept"]
     })
   );
 
-  // Body parser with size limit to prevent payload flooding / DoS
   app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
   // Global Rate Limiter for all API routes (300 requests per minute per IP)
   const generalApiLimiter = rateLimit({
@@ -111,16 +174,14 @@ async function startServer() {
     message: { error: "Too many login attempts. Please try again after 15 minutes." }
   });
 
-  app.use("/api/auth/login", authLimiter);
-  app.use("/api", generalApiLimiter);
-
-  // Health check endpoint
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      message: "Saka Homes Inventory API is healthy, authenticated, and secured." 
-    });
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok" });
   });
+
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/supabase-sync", authLimiter);
+  app.use("/api/auth/change-password", authLimiter);
+  app.use("/api", generalApiLimiter);
 
   // Mount Hardened API Routes
   app.use("/api", apiRoutes);
@@ -129,6 +190,33 @@ async function startServer() {
   app.use("/api/*", (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.originalUrl}` });
   });
+
+  // Vite middleware for development vs static files for production
+  if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = resolveDistPath();
+    console.log(`[STATIC] Serving frontend from ${distPath}`);
+    app.use(express.static(distPath, { index: false, fallthrough: true }));
+    app.get(/^(?!\/api(?:\/|$)).*/, (req, res, next) => {
+      if (path.extname(req.path)) {
+        return res.status(404).end();
+      }
+      const indexFile = path.join(distPath, "index.html");
+      if (!fs.existsSync(indexFile)) {
+        return res.status(500).send("Frontend build is missing. Run npm run build.");
+      }
+      res.setHeader("Cache-Control", "no-cache");
+      res.sendFile(indexFile, (err) => {
+        if (err) next(err);
+      });
+    });
+  }
 
   // Centralized Error Handling Middleware (prevents leaking stack traces or database secrets)
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -143,27 +231,12 @@ async function startServer() {
       return next(err);
     }
 
-    const statusCode = err.status || err.statusCode || 500;
-    res.status(statusCode).json({
-      error: err.expose ? err.message : "An unexpected server error occurred. Please try again later."
+    const statusCode = Number(err.status || err.statusCode) || 500;
+    const safeStatus = statusCode >= 400 && statusCode < 600 ? statusCode : 500;
+    res.status(safeStatus).json({
+      error: err.expose && safeStatus < 500 ? err.message : "An unexpected server error occurred. Please try again later."
     });
   });
-
-  // Vite middleware for development vs static files for production
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
 
   // Start HTTP server immediately to satisfy container health checks
   app.listen(PORT, "0.0.0.0", () => {
