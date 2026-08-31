@@ -23,20 +23,6 @@ export const authService = {
   login: async (username: string, password: string): Promise<AppUser> => {
     const trimmed = username.trim();
 
-    // If Supabase is configured and the user entered an email, try Supabase Auth first
-    if (supabase && isSupabaseConfigured && trimmed.includes('@') && !trimmed.endsWith('@sakainventory')) {
-      try {
-        return await authService.loginWithSupabase(trimmed, password);
-      } catch (supabaseErr: any) {
-        const msg = (supabaseErr.message || '').toLowerCase();
-        // If Supabase Auth gave an explicit failure like email unconfirmed or bad password, don't silently swallow
-        if (msg.includes('email not confirmed')) {
-          throw supabaseErr;
-        }
-        // If credentials failed on Supabase, still attempt fallback to local database
-      }
-    }
-
     const res = await fetchApi<{ success: boolean; token: string; user: AppUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username: trimmed, password }),
