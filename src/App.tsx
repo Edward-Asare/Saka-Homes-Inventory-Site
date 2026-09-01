@@ -298,7 +298,7 @@ export default function App() {
         {/* Right Column - Credentials login card. Faint house watermark on mobile only; card stays opaque. */}
         <div className="w-full lg:w-5/12 flex items-center justify-center p-4 sm:p-8 lg:p-12 bg-[#FAF8F5] min-h-screen relative">
           <div
-            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-[0.12] lg:hidden"
+            className="absolute inset-0 bg-cover bg-[center_30%] pointer-events-none opacity-[0.18] lg:hidden"
             style={{ backgroundImage: `url(${loginBg})` }}
             aria-hidden="true"
           />
