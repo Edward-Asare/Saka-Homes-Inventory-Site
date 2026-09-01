@@ -295,12 +295,17 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Column - Credentials login card (no watermark) */}
+        {/* Right Column - Credentials login card. Faint house watermark on mobile only; card stays opaque. */}
         <div className="w-full lg:w-5/12 flex items-center justify-center p-4 sm:p-8 lg:p-12 bg-[#FAF8F5] min-h-screen relative">
+          <div
+            className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-[0.12] lg:hidden"
+            style={{ backgroundImage: `url(${loginBg})` }}
+            aria-hidden="true"
+          />
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-slate-950/5 p-6 sm:p-10 space-y-6 sm:space-y-8 border border-slate-200/80 relative z-10"
+            className="max-w-md w-full bg-white rounded-2xl shadow-xl shadow-slate-950/5 p-6 sm:p-10 space-y-6 sm:space-y-8 border border-slate-200/80 relative z-10"
           >
             <div className="space-y-4 flex flex-col items-center text-center">
               <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-amber-900/10">
