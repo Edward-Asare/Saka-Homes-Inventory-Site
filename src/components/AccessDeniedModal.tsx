@@ -17,7 +17,7 @@ export default function AccessDeniedModal({ isOpen, onClose, actionName }: Acces
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 overflow-hidden"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 overflow-hidden"
           >
             {/* Top decorative accent */}
             <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600" />
@@ -35,14 +35,14 @@ export default function AccessDeniedModal({ isOpen, onClose, actionName }: Acces
               </div>
 
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100/80 text-rose-800 text-[11px] font-extrabold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100/80 text-rose-800 text-[11px] font-semibold uppercase tracking-wider">
                   <Lock className="w-3 h-3" />
                   <span>Access Denied</span>
                 </div>
-                <h3 className="text-xl font-heading font-extrabold text-[#1E1B4B]">
+                <h3 className="text-xl font-heading font-semibold text-[#1E1B4B]">
                   Admin Authorization Required
                 </h3>
-                <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto">
+                <p className="text-slate-500 text-sm leading-relaxed max-w-xs mx-auto">
                   {actionName 
                     ? `You do not have permission to ${actionName}. Guest accounts have read-only permissions across Saka Homes.`
                     : 'Your account is in Guest Mode (Read-Only). Modifying inventory, issuing stock, or creating orders requires Admin credentials.'}
@@ -52,7 +52,7 @@ export default function AccessDeniedModal({ isOpen, onClose, actionName }: Acces
               <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-left text-xs space-y-2">
                 <div className="flex items-center justify-between font-bold text-slate-700">
                   <span>Current Session Role:</span>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] uppercase font-black">
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] uppercase font-bold">
                     GUEST (READ ONLY)
                   </span>
                 </div>
@@ -63,7 +63,7 @@ export default function AccessDeniedModal({ isOpen, onClose, actionName }: Acces
 
               <button
                 onClick={onClose}
-                className="w-full py-3 bg-[#1E1B4B] hover:bg-[#2B1A70] text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-[0.98]"
+                className="w-full py-3 bg-[#1E1B4B] hover:bg-[#2B1A70] text-white rounded-lg text-sm font-semibold shadow-md transition-all active:scale-[0.98]"
               >
                 Acknowledge & Dismiss
               </button>

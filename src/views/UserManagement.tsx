@@ -281,21 +281,21 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-amber-900/10 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-amber-900/10 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#E54818] to-purple-800 flex items-center justify-center text-white shadow-md shadow-orange-950/10">
             <Users className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl md:text-2xl font-heading font-extrabold text-[#1E1B4B]">
+              <h1 className="text-xl md:text-2xl font-heading font-semibold text-[#1E1B4B]">
                 User & Security Management
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-[#C83A0F] border border-orange-200 uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-[#C83A0F] border border-orange-200 uppercase tracking-wider">
                 Admin Area
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-0.5">
               Enforce server-side role permissions, issue temporary credentials, and inspect security audit trails.
             </p>
           </div>
@@ -338,7 +338,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
             <span className="text-xs font-bold uppercase tracking-wider">Total Accounts</span>
             <Users className="w-4 h-4 text-[#1E1B4B]" />
           </div>
-          <p className="text-2xl font-black text-[#1E1B4B]">{totalUsersCount}</p>
+          <p className="text-2xl font-heading font-semibold text-[#1E1B4B] tabular-nums">{totalUsersCount}</p>
           <p className="text-[11px] text-slate-500 font-medium">Registered in PostgreSQL</p>
         </div>
 
@@ -347,7 +347,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
             <span className="text-xs font-bold uppercase tracking-wider">Active Status</span>
             <UserCheck className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-black text-emerald-600">{activeUsersCount}</p>
+          <p className="text-2xl font-heading font-semibold text-emerald-600 tabular-nums">{activeUsersCount}</p>
           <p className="text-[11px] text-slate-500 font-medium">Authorized to authenticate</p>
         </div>
 
@@ -356,7 +356,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
             <span className="text-xs font-bold uppercase tracking-wider">Administrators</span>
             <ShieldAlert className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-black text-[#E54818]">{adminCount}</p>
+          <p className="text-2xl font-heading font-semibold text-[#E54818] tabular-nums">{adminCount}</p>
           <p className="text-[11px] text-slate-500 font-medium">Full governance control</p>
         </div>
 
@@ -365,7 +365,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
             <span className="text-xs font-bold uppercase tracking-wider">Pending Password</span>
             <KeyRound className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-black text-amber-600">{pendingPasswordCount}</p>
+          <p className="text-2xl font-heading font-semibold text-amber-600 tabular-nums">{pendingPasswordCount}</p>
           <p className="text-[11px] text-slate-500 font-medium">First-login change required</p>
         </div>
       </div>
@@ -409,7 +409,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
 
       {/* Main Tab Content */}
       {activeTab === 'users' ? (
-        <div className="bg-white rounded-3xl border border-amber-900/10 shadow-sm overflow-hidden space-y-4 p-6">
+        <div className="bg-white rounded-2xl border border-amber-900/10 shadow-sm overflow-hidden space-y-4 p-6">
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-2 border-b border-slate-100">
             <div className="relative w-full sm:w-80">
@@ -460,7 +460,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-[#FAF8F5] text-slate-500 font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+                <tr className="bg-[#FAF8F5] text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200/80">
                   <th className="py-3.5 px-4 rounded-l-xl">User Account</th>
                   <th className="py-3.5 px-4">Role</th>
                   <th className="py-3.5 px-4">Status</th>
@@ -484,14 +484,14 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                       <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1E1B4B] to-purple-600 text-white font-black text-xs flex items-center justify-center uppercase shadow-2xs">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1E1B4B] to-purple-600 text-white font-bold text-xs flex items-center justify-center uppercase shadow-2xs">
                               {u.username[0]}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
                                 <p className="font-bold text-[#1E1B4B]">{u.fullName}</p>
                                 {isSelf && (
-                                  <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-extrabold rounded">
+                                  <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-semibold rounded">
                                     YOU
                                   </span>
                                 )}
@@ -639,10 +639,10 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
         </div>
       ) : (
         /* Security Audit Trail View */
-        <div className="bg-white rounded-3xl border border-amber-900/10 shadow-sm overflow-hidden p-6 space-y-4">
+        <div className="bg-white rounded-2xl border border-amber-900/10 shadow-sm overflow-hidden p-6 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <div>
-              <h2 className="text-sm font-heading font-extrabold text-[#1E1B4B]">Immutable Security Audit Trail</h2>
+              <h2 className="text-sm font-heading font-semibold text-[#1E1B4B]">Immutable Security Audit Trail</h2>
               <p className="text-xs text-slate-500">Chronological log of authentication attempts, role modifications, and credentials events.</p>
             </div>
             <button
@@ -658,7 +658,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="bg-[#FAF8F5] text-slate-500 font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+                <tr className="bg-[#FAF8F5] text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200/80">
                   <th className="py-3 px-4 rounded-l-xl">Timestamp</th>
                   <th className="py-3 px-4">Event Type</th>
                   <th className="py-3 px-4">Actor</th>
@@ -680,7 +680,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                     if (log.eventType === 'LOGIN_SUCCESS') badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
                     else if (log.eventType === 'LOGIN_FAILURE') badgeColor = 'bg-rose-50 text-rose-700 border-rose-200';
                     else if (log.eventType === 'USER_CREATED') badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
-                    else if (log.eventType === 'USER_DELETED') badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold';
+                    else if (log.eventType === 'USER_DELETED') badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 font-semibold';
                     else if (log.eventType === 'USER_DEACTIVATED') badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
                     else if (log.eventType === 'USER_ACTIVATED') badgeColor = 'bg-teal-50 text-teal-700 border-teal-200';
                     else if (log.eventType === 'ROLE_CHANGED') badgeColor = 'bg-purple-50 text-purple-700 border-purple-200';
@@ -727,7 +727,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-amber-900/15"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-amber-900/15"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
@@ -735,7 +735,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                     <UserPlus className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-heading font-extrabold text-[#1E1B4B] text-base">Create User Account</h3>
+                    <h3 className="font-heading font-semibold text-[#1E1B4B] text-base">Create User Account</h3>
                     <p className="text-[11px] text-slate-500">Generates a secure temporary password automatically</p>
                   </div>
                 </div>
@@ -749,7 +749,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
 
               <form onSubmit={handleCreateUser} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
                     Full Name *
                   </label>
                   <input
@@ -763,7 +763,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
                     Username / Email *
                   </label>
                   <input
@@ -777,7 +777,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
                     Role & Permissions *
                   </label>
                   <div className="grid grid-cols-3 gap-2 mb-2">
@@ -853,13 +853,13 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
             >
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
                   <KeyRound className="w-6 h-6" />
                 </div>
-                <h3 className="font-heading font-extrabold text-[#1E1B4B] text-lg">
+                <h3 className="font-heading font-semibold text-[#1E1B4B] text-lg">
                   {tempPasswordModal.isReset ? 'Password Reset Successfully' : 'User Created Successfully'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -912,7 +912,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-amber-900/15"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-amber-900/15"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
@@ -920,7 +920,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
                     <Shield className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-heading font-extrabold text-[#1E1B4B] text-base">Modify User Role</h3>
+                    <h3 className="font-heading font-semibold text-[#1E1B4B] text-base">Modify User Role</h3>
                     <p className="text-[11px] text-slate-500">For user: {selectedUser.fullName}</p>
                   </div>
                 </div>
@@ -991,14 +991,14 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
             >
               <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
                 <KeyRound className="w-6 h-6" />
               </div>
 
               <div className="text-center space-y-1">
-                <h3 className="font-heading font-extrabold text-[#1E1B4B] text-lg">Reset User Password?</h3>
+                <h3 className="font-heading font-semibold text-[#1E1B4B] text-lg">Reset User Password?</h3>
                 <p className="text-xs text-slate-500">
                   This will generate a new temporary password for <span className="font-bold text-[#1E1B4B]">{selectedUser.fullName}</span> ({selectedUser.username}) and invalidate all current active sessions.
                 </p>
@@ -1038,7 +1038,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-amber-900/15"
             >
               <div className={cn(
                 "w-12 h-12 rounded-2xl flex items-center justify-center mx-auto",
@@ -1048,7 +1048,7 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               </div>
 
               <div className="text-center space-y-1">
-                <h3 className="font-heading font-extrabold text-[#1E1B4B] text-lg">
+                <h3 className="font-heading font-semibold text-[#1E1B4B] text-lg">
                   {selectedUser.isActive !== false ? 'Deactivate User Account?' : 'Re-activate User Account?'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -1095,14 +1095,14 @@ export default function UserManagement({ currentUser, onAccessDenied }: UserMana
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-rose-200"
+              className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-rose-200"
             >
               <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto shadow-inner">
                 <Trash2 className="w-6 h-6" />
               </div>
 
               <div className="text-center space-y-1">
-                <h3 className="font-heading font-extrabold text-[#1E1B4B] text-lg">
+                <h3 className="font-heading font-semibold text-[#1E1B4B] text-lg">
                   Delete User Account?
                 </h3>
                 <p className="text-xs text-slate-500">

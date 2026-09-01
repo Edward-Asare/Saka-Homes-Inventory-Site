@@ -56,16 +56,16 @@ export default function ForcedChangePasswordModal({ user, onPasswordChanged, onL
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-3xl max-w-md w-full p-7 space-y-6 shadow-2xl border border-amber-900/20"
+        className="bg-white rounded-2xl max-w-md w-full p-7 space-y-6 shadow-2xl border border-amber-900/20"
       >
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
             <Lock className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-heading font-extrabold text-[#1E1B4B]">
+          <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">
             Password Update Required
           </h2>
-          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+          <p className="text-sm text-slate-500 max-w-xs mx-auto">
             Welcome, <span className="font-bold text-[#1E1B4B]">{user.fullName}</span>. For your account security, you must set a new personal password to continue.
           </p>
         </div>
@@ -79,7 +79,7 @@ export default function ForcedChangePasswordModal({ user, onPasswordChanged, onL
 
         <form id="forced-password-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-semibold text-[#1E1B4B] uppercase tracking-[0.12em] mb-1.5">
               New Password *
             </label>
             <div className="relative">
@@ -109,7 +109,7 @@ export default function ForcedChangePasswordModal({ user, onPasswordChanged, onL
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold text-[#1E1B4B] uppercase tracking-wider mb-1.5">
+            <label className="block text-[11px] font-semibold text-[#1E1B4B] uppercase tracking-[0.12em] mb-1.5">
               Confirm New Password *
             </label>
             <div className="relative">
@@ -144,7 +144,7 @@ export default function ForcedChangePasswordModal({ user, onPasswordChanged, onL
 
           {/* Password Policy Checklist */}
           <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2 text-[11px]">
-            <p className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px]">
+            <p className="font-semibold text-slate-700 uppercase tracking-wider text-[10px]">
               Password Requirements
             </p>
             <div className="space-y-1.5 font-medium">
@@ -172,7 +172,7 @@ export default function ForcedChangePasswordModal({ user, onPasswordChanged, onL
               id="set-password-submit-btn"
               type="submit"
               disabled={!isFormValid || loading}
-              className="w-full py-3 bg-[#E54818] text-white rounded-xl text-xs font-bold hover:bg-[#C83A0F] active:scale-98 transition-all disabled:opacity-50 disabled:pointer-events-none shadow-md shadow-orange-600/20 flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#E54818] text-white rounded-lg text-sm font-semibold hover:bg-[#C83A0F] active:scale-98 transition-all disabled:opacity-50 disabled:pointer-events-none shadow-md shadow-orange-600/20 flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>{loading ? 'Securing Account...' : 'Set Password & Enter System'}</span>

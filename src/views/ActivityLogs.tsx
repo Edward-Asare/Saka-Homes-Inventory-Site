@@ -257,18 +257,18 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-amber-900/10 shadow-sm space-y-4">
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-amber-900/10 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 bg-[#E54818]/10 text-[#E54818] rounded-2xl">
                 <History className="w-6 h-6" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-heading font-extrabold text-[#1E1B4B]">
+              <h1 className="text-2xl sm:text-3xl font-heading font-semibold text-[#1E1B4B]">
                 Activity Logs & Audit Trail
               </h1>
             </div>
-            <p className="text-slate-500 text-xs sm:text-sm pl-11">
+            <p className="text-slate-500 text-sm sm:text-sm pl-11">
               Comprehensive chronological log recording all inventory changes, stock dispatches, PO fulfillments, and user account actions with user attribution.
             </p>
           </div>
@@ -318,7 +318,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               <span>Total Recorded Events</span>
               <Activity className="w-4 h-4 text-orange-500" />
             </div>
-            <p className="text-2xl font-black text-[#1E1B4B]">
+            <p className="text-2xl font-bold text-[#1E1B4B]">
               {stats?.totalLogs?.toLocaleString() ?? totalCount}
             </p>
             <p className="text-[11px] text-slate-500 font-medium">All logged user operations</p>
@@ -329,7 +329,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               <span>Last 24 Hours</span>
               <Clock className="w-4 h-4 text-blue-500" />
             </div>
-            <p className="text-2xl font-black text-blue-600">
+            <p className="text-2xl font-bold text-blue-600">
               {stats?.actionsLast24h?.toLocaleString() ?? 0}
             </p>
             <p className="text-[11px] text-slate-500 font-medium">Recent operational actions</p>
@@ -340,7 +340,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               <span>Most Active User</span>
               <User className="w-4 h-4 text-emerald-500" />
             </div>
-            <p className="text-base font-black text-[#1E1B4B] truncate">
+            <p className="text-base font-bold text-[#1E1B4B] truncate">
               {stats?.topActors?.[0]?.actor_username || 'Admin'}
             </p>
             <p className="text-[11px] text-slate-500 font-medium truncate">
@@ -353,7 +353,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               <span>Primary Activity</span>
               <Layers className="w-4 h-4 text-purple-500" />
             </div>
-            <p className="text-base font-black text-purple-700 truncate">
+            <p className="text-base font-bold text-purple-700 truncate">
               {stats?.moduleBreakdown?.[0]?.module?.replace('_', ' ') || 'INVENTORY'}
             </p>
             <p className="text-[11px] text-slate-500 font-medium truncate">
@@ -364,7 +364,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-5 rounded-3xl border border-amber-900/10 shadow-sm space-y-4">
+      <div className="bg-white p-5 rounded-2xl border border-amber-900/10 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
           {/* Search box */}
           <div className="relative flex-1">
@@ -456,7 +456,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
       </div>
 
       {/* Activity Log Feed */}
-      <div className="bg-white rounded-3xl border border-amber-900/10 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-amber-900/10 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-16 flex flex-col items-center justify-center space-y-3">
             <RefreshCw className="w-8 h-8 animate-spin text-[#E54818]" />
@@ -467,7 +467,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
             <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500">
               <History className="w-7 h-7" />
             </div>
-            <h3 className="text-base font-extrabold text-[#1E1B4B]">No activity events found</h3>
+            <h3 className="text-base font-semibold text-[#1E1B4B]">No activity events found</h3>
             <p className="text-xs text-slate-500 max-w-sm">
               {searchQuery || selectedModule !== 'ALL' || selectedActor !== 'ALL' || startDate || endDate
                 ? 'Try adjusting or clearing your filters to see more events.'
@@ -514,12 +514,12 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
 
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase tracking-wider", modConfig.badgeBg)}>
+                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wider", modConfig.badgeBg)}>
                             <span className={cn("w-1.5 h-1.5 rounded-full", modConfig.dotColor)} />
                             {modConfig.label}
                           </span>
 
-                          <span className="text-[11px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                             {log.eventType.replace(/_/g, ' ')}
                           </span>
 
@@ -587,13 +587,13 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
                     {/* Right Column: User Attribution + Timestamp */}
                     <div className="flex md:flex-col items-center md:items-end justify-between md:justify-start gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-black text-[10px] uppercase shadow-2xs">
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#E54818] to-purple-600 flex items-center justify-center text-white font-bold text-[10px] uppercase shadow-2xs">
                           {log.actorUsername[0]?.toUpperCase() || 'U'}
                         </div>
                         <div className="text-left md:text-right">
-                          <p className="text-xs font-extrabold text-[#1E1B4B]">{log.actorUsername}</p>
+                          <p className="text-xs font-semibold text-[#1E1B4B]">{log.actorUsername}</p>
                           <span className={cn(
-                            "inline-block px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase",
+                            "inline-block px-1.5 py-0.2 rounded text-[9px] font-semibold uppercase",
                             log.actorRole === 'ADMIN' ? "text-orange-600 bg-orange-50 font-bold" : "text-blue-600 bg-blue-50"
                           )}>
                             {log.actorRole}
@@ -639,7 +639,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              <span className="px-3 py-1 text-xs font-extrabold text-[#1E1B4B]">
+              <span className="px-3 py-1 text-xs font-semibold text-[#1E1B4B]">
                 Page {currentPage} of {totalPages}
               </span>
 
@@ -664,7 +664,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-200 space-y-6 relative"
+              className="bg-white rounded-2xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-200 space-y-6 relative"
             >
               <button
                 onClick={() => {
@@ -681,7 +681,7 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
                   <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-heading font-black text-[#1E1B4B]">
+                  <h3 className="text-lg font-heading font-bold text-[#1E1B4B]">
                     90-Day Automated Retention
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
@@ -694,13 +694,13 @@ export default function ActivityLogs({ currentUser, onAccessDenied }: ActivityLo
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
                 <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/60">
                   <span className="text-slate-500 font-medium">Retention Window:</span>
-                  <span className="font-extrabold text-[#1E1B4B] px-2 py-0.5 rounded bg-white border border-slate-200">
+                  <span className="font-semibold text-[#1E1B4B] px-2 py-0.5 rounded bg-white border border-slate-200">
                     90 Days (Active)
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/60">
                   <span className="text-slate-500 font-medium">Automatic Cleanup Schedule:</span>
-                  <span className="font-extrabold text-emerald-700">
+                  <span className="font-semibold text-emerald-700">
                     Every 24 Hours & Server Startup
                   </span>
                 </div>

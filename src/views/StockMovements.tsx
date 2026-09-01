@@ -318,8 +318,8 @@ export default function StockMovements({
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight text-[#1E1B4B]">Stock Movements & Site Dispatches</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Track materials issued out to site, restocked, or adjusted with real-time stock updates.</p>
+          <h1 className="text-2xl sm:text-3xl font-heading font-semibold tracking-tight text-[#1E1B4B]">Stock Movements & Site Dispatches</h1>
+          <p className="text-slate-500 text-sm mt-1">Track materials issued out to site, restocked, or adjusted with real-time stock updates.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button 
@@ -369,10 +369,10 @@ export default function StockMovements({
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Total Dispatched Out</p>
-            <p className="text-3xl font-heading font-extrabold text-[#E54818] mt-1">{totalIssuedCount}</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Total Dispatched Out</p>
+            <p className="text-3xl font-heading font-semibold text-[#E54818] mt-1 tabular-nums">{totalIssuedCount}</p>
             <p className="text-xs text-slate-500 mt-1">Material units issued to site</p>
           </div>
           <div className="p-3.5 bg-orange-50 text-[#E54818] rounded-2xl border border-orange-100">
@@ -380,10 +380,10 @@ export default function StockMovements({
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Total Restocked</p>
-            <p className="text-3xl font-heading font-extrabold text-[#1E1B4B] mt-1">{totalRestockedCount}</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Total Restocked</p>
+            <p className="text-3xl font-heading font-semibold text-[#1E1B4B] mt-1 tabular-nums">{totalRestockedCount}</p>
             <p className="text-xs text-slate-500 mt-1">Units received into storage</p>
           </div>
           <div className="p-3.5 bg-purple-50 text-[#1E1B4B] rounded-2xl border border-purple-100">
@@ -391,10 +391,10 @@ export default function StockMovements({
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Low/Out of Stock</p>
-            <p className="text-3xl font-heading font-extrabold text-rose-600 mt-1">{lowStockItems.length}</p>
+            <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Low/Out of Stock</p>
+            <p className="text-3xl font-heading font-semibold text-rose-600 mt-1 tabular-nums">{lowStockItems.length}</p>
             <p className="text-xs text-slate-500 mt-1">Requires reorder dispatch</p>
           </div>
           <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100">
@@ -404,7 +404,7 @@ export default function StockMovements({
       </div>
 
       {/* Date Filter & Preset Bar */}
-      <div className="bg-white p-5 rounded-3xl border-2 border-[#E2E8F0] shadow-sm space-y-4 print:hidden">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4 print:hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-bold text-[#1E293B]">
             <Filter className="w-4 h-4 text-blue-600" />
@@ -436,7 +436,7 @@ export default function StockMovements({
         {/* Date Inputs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end pt-2 border-t border-[#F1F5F9]">
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase text-[#64748B] tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-bold uppercase text-[#64748B] tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-blue-600" />
               From Date
             </label>
@@ -452,7 +452,7 @@ export default function StockMovements({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase text-[#64748B] tracking-wider flex items-center gap-1">
+            <label className="text-[10px] font-bold uppercase text-[#64748B] tracking-wider flex items-center gap-1">
               <CalendarIcon className="w-3 h-3 text-blue-600" />
               To Date
             </label>
@@ -490,7 +490,7 @@ export default function StockMovements({
               "px-4 py-2 rounded-xl text-xs font-bold tracking-wider transition-all",
               filterType === tab.id 
                 ? "bg-blue-600 text-white shadow-sm" 
-                : "bg-white border-2 border-[#E2E8F0] text-[#64748B] hover:border-blue-200"
+                : "bg-white border border-slate-200/80 text-[#64748B] hover:border-blue-200"
             )}
           >
             {tab.label}
@@ -499,10 +499,10 @@ export default function StockMovements({
       </div>
 
       {/* Movements Table */}
-      <div className="bg-white rounded-3xl border-2 border-[#E2E8F0] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-[#E2E8F0] flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold">Movement Audit Log</h2>
+            <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">Movement Audit Log</h2>
             <p className="text-xs text-[#64748B]">Complete history of material dispatches, site issues, and store restocks.</p>
           </div>
         </div>
@@ -510,13 +510,13 @@ export default function StockMovements({
           <table className="w-full text-left min-w-[1100px]">
             <thead className="bg-[#F8FAFC]">
               <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Ref Code & Date</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Type</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Item Name</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Qty Moved</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Destination / Recipient</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em]">Issued By</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[#64748B] uppercase tracking-[0.1em] print:hidden">Actions</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Ref Code & Date</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Type</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Item Name</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Qty Moved</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Destination / Recipient</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em]">Issued By</th>
+                <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 uppercase tracking-[0.12em] print:hidden">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
@@ -544,7 +544,7 @@ export default function StockMovements({
                   </td>
                   <td className="px-6 py-5">
                     <span className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1",
+                      "px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase inline-flex items-center gap-1",
                       m.movementType === 'ISSUED_OUT' ? "bg-amber-100 text-amber-800" :
                       m.movementType === 'RESTOCKED' ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
                     )}>
@@ -561,7 +561,7 @@ export default function StockMovements({
                   </td>
                   <td className="px-6 py-5">
                     <span className={cn(
-                      "font-black text-sm",
+                      "font-bold text-sm",
                       m.movementType === 'ISSUED_OUT' ? "text-amber-600" : "text-emerald-600"
                     )}>
                       {m.movementType === 'ISSUED_OUT' ? `-${m.quantity}` : `+${m.quantity}`} {m.unitOfMeasure}
@@ -610,7 +610,7 @@ export default function StockMovements({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="p-6 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
                 <div className="flex items-center gap-3">
@@ -621,7 +621,7 @@ export default function StockMovements({
                     {modalMode === 'ISSUED_OUT' ? <Send className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">
+                    <h2 className="text-xl font-heading font-semibold text-[#1E1B4B]">
                       {modalMode === 'ISSUED_OUT' ? 'Issue Material / Item Out' : 'Restock / Recalibrate Stock'}
                     </h2>
                     <p className="text-xs text-[#64748B]">Update current stock levels automatically.</p>
@@ -661,7 +661,7 @@ export default function StockMovements({
 
                 {/* Item Picker */}
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Select Inventory Item</label>
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Select Inventory Item</label>
                   <select 
                     value={selectedItemId} 
                     onChange={(e) => setSelectedItemId(e.target.value)}
@@ -689,7 +689,7 @@ export default function StockMovements({
                     <div className="border-t border-[#E2E8F0] pt-2 flex justify-between items-center">
                       <span className="font-bold">Projected New Stock:</span>
                       <span className={cn(
-                        "font-black text-sm",
+                        "font-bold text-sm",
                         willBeLowStock ? "text-red-600" : "text-emerald-600"
                       )}>
                         {calculatedNewStock} {selectedItem.unitOfMeasure}
@@ -705,7 +705,7 @@ export default function StockMovements({
                       <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-2xl flex items-start gap-2.5 mt-2">
                         <PackageX className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-xs font-extrabold text-rose-900">No Quantity Stock Available</p>
+                          <p className="text-xs font-semibold text-rose-900">No Quantity Stock Available</p>
                           <p className="text-[11px] text-rose-700 mt-0.5">
                             Current available stock is <strong>0 {selectedItem.unitOfMeasure}</strong>. This item cannot be issued out until it is restocked.
                           </p>
@@ -717,7 +717,7 @@ export default function StockMovements({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">
                       Quantity to {modalMode === 'ISSUED_OUT' ? 'Issue' : 'Restock'}
                     </label>
                     <input 
@@ -731,7 +731,7 @@ export default function StockMovements({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Date</label>
+                    <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Date</label>
                     <input 
                       type="date" 
                       value={movementDate}
@@ -743,7 +743,7 @@ export default function StockMovements({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">
                     {modalMode === 'ISSUED_OUT' ? 'Destination Site / Recipient Name' : 'Supplier / Source'}
                   </label>
                   <input 
@@ -757,7 +757,7 @@ export default function StockMovements({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Issued / Handled By</label>
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Issued / Handled By</label>
                   <input 
                     type="text" 
                     value={issuedBy}
@@ -769,7 +769,7 @@ export default function StockMovements({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Notes / Purpose</label>
+                  <label className="text-xs font-bold uppercase text-[#64748B] tracking-wider">Notes / Purpose</label>
                   <textarea 
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -779,7 +779,7 @@ export default function StockMovements({
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={handleCloseModal} className="flex-1 py-3 border-2 border-[#E2E8F0] rounded-xl font-bold text-[#64748B] hover:bg-[#F8FAFC]">Cancel</button>
+                  <button type="button" onClick={handleCloseModal} className="flex-1 py-3 border border-slate-200/80 rounded-xl font-bold text-[#64748B] hover:bg-[#F8FAFC]">Cancel</button>
                   <button 
                     type="submit" 
                     className={cn(
