@@ -162,7 +162,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
       totalCost: Number(formData.get('qtyOrdered')) * Number(formData.get('unitCost') || unitCost || 0),
       orderDate: (formData.get('orderDate') as string) || new Date().toISOString().split('T')[0],
       expectedDate: (formData.get('expectedDate') as string) || '',
-      status: (formData.get('status') as any) || 'PENDING',
+      status: 'PENDING' as const,
       notes: (formData.get('notes') as string) || '',
       createdBy: currentUser?.username || currentUser?.fullName || 'admin',
     };
@@ -445,7 +445,7 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                   <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                   <div className="text-xs text-blue-800">
                     <p className="font-bold">Automatic Inventory Synchronization</p>
-                    <p className="mt-0.5 text-blue-700">Select an existing inventory item below or enter custom item details. Marking this PO as <strong>COMPLETED</strong> immediately increments the item's available stock in Inventory and updates the Dashboard metrics.</p>
+                    <p className="mt-0.5 text-blue-700">Select an existing inventory item below or enter custom item details. New purchase orders are created as <strong>PENDING</strong>. Marking a PO as COMPLETED later restocks inventory.</p>
                   </div>
                 </div>
 
@@ -498,14 +498,6 @@ export default function PurchaseOrders({ searchQuery, userRole = 'ADMIN', curren
                     <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Expected Date</label>
                     <input type="date" name="expectedDate" required defaultValue={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all" />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Initial Order Status</label>
-                  <select name="status" className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold">
-                    <option value="PENDING">PENDING (Awaiting delivery)</option>
-                    <option value="COMPLETED">COMPLETED (Received into inventory immediately)</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                  </select>
                 </div>
                 
                 <div className="pt-6 flex gap-4">

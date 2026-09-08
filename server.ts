@@ -6,6 +6,7 @@ import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { initializeDatabase, purgeOldLogs, pool } from "./src/db/index";
 import apiRoutes from "./src/db/apiRoutes";
+import { validateSecurityConfig } from "./src/middleware/auth";
 
 /**
  * Parses and resolves the 'trust proxy' setting in a deployment-aware manner.
@@ -59,6 +60,8 @@ function getSecureClientIp(req: Request): string {
 }
 
 async function startServer() {
+  validateSecurityConfig();
+
   const app = express();
   const PORT = 3000;
 
@@ -68,19 +71,39 @@ async function startServer() {
 
   console.log(`[PROXY CONFIG] Express 'trust proxy' configured as:`, trustProxySetting);
 
-  // Security Headers via Helmet (configured to allow iframe rendering for preview)
+  const isProduction = process.env.NODE_ENV === "production";
+
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Allows Vite inline scripts and external fonts
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", "data:", "blob:"],
+              connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://wa.me"],
+              fontSrc: ["'self'", "data:"],
+              objectSrc: ["'none'"],
+              frameAncestors: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+            },
+          }
+        : false,
       crossOriginEmbedderPolicy: false,
-      frameguard: false // Enables iframe preview in AI Studio
+      frameguard: isProduction ? { action: "deny" } : false,
     })
   );
 
-  // Cross-Origin Resource Sharing (CORS)
+  const corsOrigins = (process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: true,
+      origin: corsOrigins.length > 0 ? corsOrigins : !isProduction,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "Accept"]
@@ -112,13 +135,14 @@ async function startServer() {
   });
 
   app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/supabase-sync", authLimiter);
   app.use("/api", generalApiLimiter);
 
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      message: "Saka Homes Inventory API is healthy, authenticated, and secured." 
+      message: "Saka Homes Inventory API is healthy." 
     });
   });
 

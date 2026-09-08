@@ -117,24 +117,7 @@ export const authService = {
         throw new Error('No active session returned from Supabase Auth.');
       }
 
-      const token = data.session.access_token;
-      localStorage.setItem('saka_auth_token', token);
-
-      // Synchronize session with backend to register/retrieve local PostgreSQL profile
-      const syncRes = await fetchApi<{ success: boolean; user: AppUser; token?: string }>('/api/auth/supabase-sync', {
-        method: 'POST',
-        body: JSON.stringify({
-          accessToken: token,
-          user: data.user
-        })
-      });
-
-      const user = syncRes.user;
-      if (syncRes.token) {
-        localStorage.setItem('saka_auth_token', syncRes.token);
-      }
-      localStorage.setItem('saka_app_user', JSON.stringify(user));
-      return user;
+      return await authService.syncSupabaseAccessToken(data.session.access_token);
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes('Invalid path') || msg.includes('Failed to construct') || msg.includes('fetch')) {
@@ -142,6 +125,25 @@ export const authService = {
       }
       throw err;
     }
+  },
+
+  syncSupabaseAccessToken: async (accessToken: string): Promise<AppUser> => {
+    const syncRes = await fetchApi<{ success: boolean; user: AppUser; token?: string }>('/api/auth/supabase-sync', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        accessToken,
+      })
+    });
+
+    const user = syncRes.user;
+    if (syncRes.token) {
+      localStorage.setItem('saka_auth_token', syncRes.token);
+    }
+    localStorage.setItem('saka_app_user', JSON.stringify(user));
+    return user;
   },
 
   getUsers: async (): Promise<AppUser[]> => {
@@ -196,9 +198,9 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     ...(existingHeaders as Record<string, string>),
   };
 
-  if (token) {
+  if (token && !headers['Authorization'] && !headers['authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
-  } else if (endpoint !== '/api/auth/login' && endpoint !== '/api/health') {
+  } else if (!headers['Authorization'] && !headers['authorization'] && endpoint !== '/api/auth/login' && endpoint !== '/api/health' && endpoint !== '/api/auth/supabase-sync') {
     // If no token exists and requesting a protected endpoint, throw informative auth error
     throw new Error('Authentication required. Please sign in with your credentials.');
   }
@@ -212,9 +214,10 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   
   if (!res.ok) {
     let errMsg = `API Request failed (${res.status})`;
+    let errData: any = null;
     if (contentType && contentType.includes('application/json')) {
       try {
-        const errData = await res.json();
+        errData = await res.json();
         errMsg = errData.error || errData.message || errMsg;
       } catch {}
     } else {
@@ -224,14 +227,14 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     if (res.status === 401) {
       if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync') {
-        errMsg = errMsg || 'Unauthorized (401): Invalid username or password. If you created this user in your Supabase Dashboard, please check your credentials and ensure the user email is verified.';
+        errMsg = errMsg || 'Unauthorized (401): Invalid username or password.';
       } else {
         authService.logout();
         const sessionErrMsg = errMsg || 'Session expired or unauthorized (401). Please sign in again.';
         window.dispatchEvent(new CustomEvent('saka:auth_expired', { detail: { message: sessionErrMsg } }));
         throw new Error(sessionErrMsg);
       }
-    } else if (res.status === 403) {
+    } else if (res.status === 403 && !errData?.mustChangePassword) {
       window.dispatchEvent(new CustomEvent('saka:access_denied', { detail: { message: errMsg } }));
     }
 

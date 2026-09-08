@@ -6,7 +6,6 @@ import {
   FileDown, 
   FileText,
   Search, 
-  Trash2, 
   AlertTriangle, 
   CheckCircle2, 
   Clock, 
@@ -227,16 +226,6 @@ export default function StockMovements({
     } catch (err) {
       console.error(err);
       alert("Failed to record stock movement.");
-    }
-  };
-
-  const handleDeleteMovement = async (id: string) => {
-    if (confirm("Are you sure you want to delete this movement log record?")) {
-      try {
-        await stockMovementService.deleteMovement(id);
-      } catch (err) {
-        alert("Failed to delete movement record.");
-      }
     }
   };
 
@@ -580,13 +569,6 @@ export default function StockMovements({
                     </div>
                   </td>
                   <td className="px-6 py-5 print:hidden">
-                    <button 
-                      onClick={() => handleDeleteMovement(m.id)}
-                      title="Delete Record"
-                      className="p-2 text-[#94A3B8] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </td>
                 </tr>
               ))}

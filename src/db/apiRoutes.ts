@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs } from './index';
-import { requireAuth, requireRole, generateAuthToken, syncOrGetSupabaseProfile } from '../middleware/auth';
+import { requireAuth, requireRole, generateAuthToken, syncOrGetSupabaseProfile, verifySignedToken } from '../middleware/auth';
 import { 
   validateRequest, 
   idParamSchema, 
@@ -57,8 +56,8 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
           details: 'Login rejected: account is deactivated',
           ipAddress: clientIp
         });
-        return res.status(403).json({
-          error: 'Your account has been deactivated. Please contact your system administrator.'
+        return res.status(401).json({
+          error: 'Invalid username or password.'
         });
       }
 
@@ -76,32 +75,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
       }
     }
 
-    // 2. Check if it's the configured initial admin attempting login before first DB bootstrap
-    if (!authenticatedUser) {
-      const initialAdminUser = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
-      const initialAdminPass = process.env.INITIAL_ADMIN_PASSWORD;
-      const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
-
-      if (initialAdminPass && trimmedUsername === initialAdminUser && password === initialAdminPass) {
-        const adminHash = await hashPassword(initialAdminPass);
-        const existingAdmin = await pool.query("SELECT id FROM users WHERE id = 'usr_admin_01' OR LOWER(username) = $1 LIMIT 1", [initialAdminUser]);
-        if (existingAdmin.rows.length > 0) {
-          await pool.query(`
-            UPDATE users SET username = $1, password_hash = $2, is_active = TRUE, role = 'ADMIN'
-            WHERE id = $3
-          `, [initialAdminUser, adminHash, existingAdmin.rows[0].id]);
-        } else {
-          await pool.query(`
-            INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-            VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, FALSE, 1)
-          `, [initialAdminUser, adminHash, initialAdminName]);
-        }
-        const adminRes = await pool.query('SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1', [initialAdminUser]);
-        authenticatedUser = adminRes.rows[0];
-      }
-    }
-
-    // 3. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
+    // 2. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
     if (!authenticatedUser) {
       const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
       const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -147,7 +121,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
         ipAddress: clientIp
       });
       return res.status(401).json({
-        error: 'Invalid username or password. Please verify your credentials or check your Supabase Auth dashboard.'
+        error: 'Invalid username or password.'
       });
     }
 
@@ -209,42 +183,41 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
   }
 });
 
-// POST /api/auth/supabase-sync - Synchronize and retrieve user profile after Supabase Auth login
+// POST /api/auth/supabase-sync - Synchronize profile after a verified Supabase Auth login
 router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
-    const accessToken = req.body?.accessToken || bearerToken;
-    const passedUser = req.body?.user;
+    const accessToken = (typeof req.body?.accessToken === 'string' && req.body.accessToken.trim()) || bearerToken;
 
-    let userId = passedUser?.id;
-    let userEmail = passedUser?.email;
-    let userMetadata = passedUser?.user_metadata || {};
-    let fullName = userMetadata?.full_name || userMetadata?.name || passedUser?.fullName;
-
-    if (!userId && accessToken) {
-      const decoded: any = jwt.decode(accessToken);
-      if (decoded) {
-        userId = decoded.sub || decoded.userId || decoded.id;
-        userEmail = decoded.email || decoded.username || userEmail;
-        userMetadata = decoded.user_metadata || userMetadata;
-        fullName = fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name || decoded.fullName;
-      }
+    if (!accessToken) {
+      return res.status(401).json({
+        error: 'Unable to synchronize user: a verified access token is required.'
+      });
     }
 
+    let decoded: any;
+    try {
+      decoded = verifySignedToken(accessToken);
+    } catch (tokenErr: any) {
+      if (tokenErr?.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+      }
+      return res.status(401).json({ error: 'Invalid authentication token.' });
+    }
+
+    const userId = decoded?.sub || decoded?.userId || decoded?.id;
     if (!userId) {
       return res.status(401).json({
-        error: 'Unable to synchronize Supabase user: missing user identifier or token.'
+        error: 'Unable to synchronize user: missing user identifier in token.'
       });
     }
 
     const profile = await syncOrGetSupabaseProfile({
-      id: userId,
-      email: userEmail,
-      fullName: fullName,
-      role: userMetadata?.role,
-      userMetadata: userMetadata
+      id: String(userId),
+      email: decoded.email || decoded.username,
+      fullName: decoded.user_metadata?.full_name || decoded.user_metadata?.name || decoded.fullName
     });
 
     if (profile.isActive === false) {
@@ -253,7 +226,6 @@ router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate internal app session token
     const token = generateAuthToken({
       id: profile.id,
       username: profile.username,
@@ -265,7 +237,7 @@ router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
     await recordSecurityAudit(pool, 'LOGIN_SUCCESS', {
       actorId: profile.id,
       actorUsername: profile.username,
-      details: `Supabase authenticated user profile synced: ${profile.role}`,
+      details: `Verified identity synced: ${profile.role}`,
       ipAddress: clientIp
     });
 
@@ -283,7 +255,7 @@ router.post('/auth/supabase-sync', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Supabase profile sync error:', error);
-    res.status(500).json({ error: 'Failed to synchronize Supabase user profile.' });
+    res.status(500).json({ error: 'Failed to synchronize user profile.' });
   }
 });
 
@@ -305,8 +277,16 @@ router.post('/auth/change-password', requireAuth, validateRequest({ body: change
 
     const user = userResult.rows[0];
 
-    // If password change is NOT forced by admin, require current password verification
-    if (!user.must_change_password && currentPassword) {
+    if (user.password_hash === 'SUPABASE_AUTH_MANAGED' || user.password_hash === 'AUTH_MANAGED') {
+      return res.status(400).json({
+        error: 'This account uses external authentication. Password is managed by your identity provider.'
+      });
+    }
+
+    if (!user.must_change_password) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required.' });
+      }
       const match = await comparePassword(currentPassword, user.password_hash);
       if (!match) {
         return res.status(400).json({ error: 'Current password does not match.' });
@@ -938,7 +918,13 @@ async function syncCategoryCount(client: any, categoryName: string) {
 router.get('/inventory', requireAuth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM inventory_items ORDER BY updated_at DESC');
-    res.json(result.rows.map(mapInventoryRow));
+    const rows = result.rows.map(mapInventoryRow);
+    const role = req.user!.role;
+    if (role === 'GUEST' || role === 'VIEWER') {
+      res.json(rows.map((item) => ({ ...item, unitCost: 0, totalValue: 0 })));
+      return;
+    }
+    res.json(rows);
   } catch (error: any) {
     console.error('Fetch inventory error:', error);
     res.status(500).json({ error: 'Failed to fetch inventory' });
@@ -1111,12 +1097,8 @@ router.put('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), valid
     const unitOfMeasure = body.unitOfMeasure ?? prev.unit_of_measure;
     const minStockLevel = body.minStockLevel !== undefined ? Number(body.minStockLevel) : Number(prev.min_stock_level);
     const maxStockLevel = body.maxStockLevel !== undefined ? Number(body.maxStockLevel) : Number(prev.max_stock_level);
-    
-    // Support quantity property directly
-    const currentStock = body.quantity !== undefined 
-      ? Number(body.quantity) 
-      : (body.currentStock !== undefined ? Number(body.currentStock) : (body.reorderQty !== undefined ? Number(body.reorderQty) : Number(prev.current_stock)));
-    const reorderQty = currentStock;
+    const currentStock = Number(prev.current_stock);
+    const reorderQty = Number(prev.reorder_qty);
 
     const unitCost = body.unitCost !== undefined ? Number(body.unitCost) : Number(prev.unit_cost);
     const supplier = body.supplier ?? prev.supplier;
@@ -1289,7 +1271,7 @@ router.delete('/inventory/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), va
 // ==================== STOCK MOVEMENTS & DISPATCHES ====================
 
 // GET /api/stock-movements (ADMIN, GUEST)
-router.get('/stock-movements', requireAuth, async (req: Request, res: Response) => {
+router.get('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM stock_movements ORDER BY updated_at DESC');
     res.json(result.rows.map(mapMovementRow));
@@ -1482,50 +1464,23 @@ router.post('/stock-movements', requireAuth, requireRole('ADMIN', 'MANAGER'), va
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Stock movement transaction error:', error);
-    res.status(500).json({ error: error.message || 'Failed to execute stock movement transaction' });
+    res.status(500).json({ error: 'Failed to execute stock movement transaction' });
   } finally {
     client.release();
   }
 });
 
-// DELETE /api/stock-movements/:id (ADMIN & MANAGER)
+// DELETE /api/stock-movements/:id — records are append-only
 router.delete('/stock-movements/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), validateRequest({ params: idParamSchema }), async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const existing = await pool.query('SELECT movement_code, item_code, item_name, quantity, movement_type FROM stock_movements WHERE id = $1', [id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Stock movement not found' });
-    }
-    const mov = existing.rows[0];
-    await pool.query('DELETE FROM stock_movements WHERE id = $1', [id]);
-    
-    const clientIp = getClientIp(req);
-    await recordActivityLog(pool, {
-      eventType: 'STOCK_MOVEMENT_DELETED',
-      module: 'STOCK_MOVEMENTS',
-      actorId: req.user!.id,
-      actorUsername: req.user!.username,
-      actorName: req.user!.fullName,
-      actorRole: req.user!.role,
-      targetId: id,
-      targetName: mov.movement_code,
-      actionSummary: `Deleted stock movement log "${mov.movement_code}" (${mov.movement_type}: ${mov.quantity} units of ${mov.item_code})`,
-      details: `Deleted movement ID: ${id} | Code: ${mov.movement_code}`,
-      ipAddress: clientIp
-    });
-
-    console.log(`[SECURITY AUDIT] Stock movement record deleted: ${mov.movement_code} by admin ${req.user!.username}`);
-    res.json({ success: true, id });
-  } catch (error: any) {
-    console.error('Delete movement error:', error);
-    res.status(500).json({ error: 'Failed to delete stock movement' });
-  }
+  return res.status(403).json({
+    error: 'Stock movement records are immutable and cannot be deleted.'
+  });
 });
 
 // ==================== PURCHASE ORDERS ====================
 
 // GET /api/purchase-orders (ADMIN, GUEST)
-router.get('/purchase-orders', requireAuth, async (req: Request, res: Response) => {
+router.get('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT * FROM purchase_orders ORDER BY updated_at DESC');
     res.json(result.rows.map(mapPORow));
@@ -1551,9 +1506,10 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
       unitCost,
       orderDate,
       expectedDate,
-      status,
       notes
     } = req.body;
+    const status = 'PENDING';
+    const isCompleted = false;
 
     const numQty = Number(qtyOrdered);
     const numUnitCost = Number(unitCost);
@@ -1584,7 +1540,6 @@ router.post('/purchase-orders', requireAuth, requireRole('ADMIN', 'MANAGER'), va
     }
 
     let inventoryUpdated = false;
-    const isCompleted = status === 'COMPLETED';
     const createdBy = req.user?.username || 'system';
 
     if (itemRow && targetItemId) {
@@ -2025,7 +1980,7 @@ router.delete('/categories/:id', requireAuth, requireRole('ADMIN', 'MANAGER'), v
 // ==================== IMMUTABLE AUDIT LEDGER ====================
 
 // GET /api/audit-transactions (ADMIN, GUEST)
-router.get('/audit-transactions', requireAuth, async (req: Request, res: Response) => {
+router.get('/audit-transactions', requireAuth, requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
       SELECT t.*, i.item_name, i.item_code 

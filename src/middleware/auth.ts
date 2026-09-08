@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../types';
@@ -6,19 +6,87 @@ import { pool } from '../db/index';
 
 let runtimeEphemeralSecret: string | null = null;
 
-// Helper to get application JWT Secret strictly from environment variables
+function sanitizeSecret(raw?: string): string {
+  return (raw || '').trim().replace(/^["']|["']$/g, '');
+}
+
+/**
+ * Signing secret for application-issued JWTs.
+ * Production must set JWT_SECRET; development may fall back to an ephemeral secret.
+ */
 export function getJwtSecret(): string {
-  const raw = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
-  if (raw && raw.trim() !== '') {
-    return raw.trim().replace(/^["']|["']$/g, '');
+  const appSecret = sanitizeSecret(process.env.JWT_SECRET);
+  if (appSecret) {
+    return appSecret;
   }
 
-  // Fallback to ephemeral in-memory cryptographic secret if no environment secret is set
+  const supabaseSecret = sanitizeSecret(process.env.SUPABASE_JWT_SECRET);
+  if (supabaseSecret && process.env.NODE_ENV !== 'production') {
+    return supabaseSecret;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required when NODE_ENV=production.');
+  }
+
   if (!runtimeEphemeralSecret) {
     runtimeEphemeralSecret = crypto.randomBytes(32).toString('hex');
-    console.warn('[SECURITY] No JWT_SECRET or SUPABASE_JWT_SECRET configured in environment. Generated an ephemeral runtime in-memory secret.');
+    console.warn('[SECURITY] No JWT_SECRET configured. Generated an ephemeral in-memory secret. Sessions will not survive process restarts.');
   }
   return runtimeEphemeralSecret;
+}
+
+export function getJwtVerificationSecrets(): string[] {
+  const secrets: string[] = [];
+  const appSecret = sanitizeSecret(process.env.JWT_SECRET);
+  const supabaseSecret = sanitizeSecret(process.env.SUPABASE_JWT_SECRET);
+  if (appSecret) secrets.push(appSecret);
+  if (supabaseSecret && supabaseSecret !== appSecret) secrets.push(supabaseSecret);
+  if (secrets.length === 0 && process.env.NODE_ENV !== 'production') {
+    secrets.push(getJwtSecret());
+  }
+  return secrets;
+}
+
+export function validateSecurityConfig(): void {
+  if (process.env.NODE_ENV === 'production') {
+    const secret = sanitizeSecret(process.env.JWT_SECRET);
+    if (!secret || secret.length < 32) {
+      throw new Error('JWT_SECRET must be set to a strong value (32+ characters) when NODE_ENV=production.');
+    }
+  }
+}
+
+/**
+ * Verify a JWT with the application secret and, if configured, the Supabase JWT secret.
+ * Unsigned or incorrectly signed tokens are rejected. No decode-without-verify fallback.
+ */
+export function verifySignedToken(token: string): JwtPayload {
+  const secrets = getJwtVerificationSecrets();
+  if (secrets.length === 0) {
+    const err = new Error('Authentication is not configured.');
+    (err as any).name = 'JsonWebTokenError';
+    throw err;
+  }
+
+  let lastError: any = null;
+  for (const secret of secrets) {
+    try {
+      const decoded = jwt.verify(token, secret);
+      if (typeof decoded === 'string') {
+        const err = new Error('Invalid authentication token.');
+        (err as any).name = 'JsonWebTokenError';
+        throw err;
+      }
+      return decoded;
+    } catch (err: any) {
+      if (err?.name === 'TokenExpiredError') {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('Invalid authentication token.');
 }
 
 /**
@@ -36,7 +104,7 @@ export function generateAuthToken(user: { id: string; username: string; role: st
       tokenVersion: user.tokenVersion || 1
     },
     secret,
-    { expiresIn: '7d' }
+    { expiresIn: '24h' }
   );
 }
 
@@ -49,7 +117,6 @@ export interface AuthUserPayload {
   tokenVersion?: number;
 }
 
-// Extend Express Request interface to carry authenticated user
 declare global {
   namespace Express {
     interface Request {
@@ -81,10 +148,21 @@ export interface SupabaseJwtPayload {
   iat?: number;
 }
 
+function requestPath(req: Request): string {
+  return `${req.baseUrl || ''}${req.path || ''}`;
+}
+
+function isAllowedDuringForcedPasswordChange(req: Request): boolean {
+  const path = requestPath(req);
+  if (req.method === 'GET' && path.endsWith('/auth/me')) return true;
+  if (req.method === 'POST' && path.endsWith('/auth/change-password')) return true;
+  return false;
+}
+
 /**
  * Middleware: Verify Bearer JWT Token.
- * Validates tokens issued by PostgreSQL local auth or Supabase Auth.
- * Synchronizes user with database RBAC rules and attaches req.user.
+ * Validates tokens issued by the app or by Supabase Auth (when SUPABASE_JWT_SECRET is set).
+ * Attaches req.user from the database RBAC record, never from unverified claims.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -103,52 +181,27 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const secret = getJwtSecret();
-    let decoded: any = null;
+    const decoded = verifySignedToken(token);
 
-    try {
-      decoded = jwt.verify(token, secret);
-    } catch (verifyErr: any) {
-      if (verifyErr.name === 'TokenExpiredError') {
-        return res.status(401).json({
-          error: 'Session expired. Please sign in again.'
-        });
-      }
-      
-      // If verification with primary secret failed, fallback to decode if not expired
-      const unverified = jwt.decode(token) as any;
-      if (unverified && (unverified.sub || unverified.userId || unverified.id)) {
-        const nowSeconds = Math.floor(Date.now() / 1000);
-        if (unverified.exp && unverified.exp < nowSeconds) {
-          return res.status(401).json({
-            error: 'Session expired. Please sign in again.'
-          });
-        }
-        decoded = unverified;
-      } else {
-        return res.status(401).json({
-          error: 'Invalid authentication token.'
-        });
-      }
-    }
-
-    if (!decoded || (!decoded.sub && !decoded.userId && !decoded.id)) {
+    if (!decoded || (!decoded.sub && !decoded.userId && !(decoded as any).id)) {
       return res.status(401).json({
         error: 'Invalid authentication token: missing user identifier.'
       });
     }
 
-    const userId = decoded.sub || decoded.userId || decoded.id;
-    const usernameOrEmail = (decoded.username || decoded.email || decoded.user_metadata?.email || '').toLowerCase().trim();
-    const fullName = decoded.fullName || decoded.user_metadata?.full_name || decoded.user_metadata?.name;
-    const role = decoded.role || decoded.user_metadata?.role;
+    const userId = String(decoded.sub || decoded.userId || (decoded as any).id);
+    const usernameOrEmail = String(
+      decoded.username || decoded.email || (decoded as any).user_metadata?.email || ''
+    ).toLowerCase().trim();
+    const fullName =
+      (decoded as any).fullName ||
+      (decoded as any).user_metadata?.full_name ||
+      (decoded as any).user_metadata?.name;
 
     const dbUser = await syncOrGetSupabaseProfile({
-      id: String(userId),
+      id: userId,
       email: usernameOrEmail,
-      fullName,
-      role,
-      userMetadata: decoded.user_metadata
+      fullName
     });
 
     if (!dbUser.isActive) {
@@ -157,7 +210,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
     }
 
-    // Attach verified user payload with database RBAC role
+    if (
+      typeof decoded.tokenVersion === 'number' &&
+      decoded.tokenVersion !== (dbUser.tokenVersion || 1)
+    ) {
+      return res.status(401).json({
+        error: 'Session has been revoked. Please sign in again.'
+      });
+    }
+
+    if (dbUser.mustChangePassword && !isAllowedDuringForcedPasswordChange(req)) {
+      return res.status(403).json({
+        error: 'Password change required before you can access this resource.',
+        mustChangePassword: true
+      });
+    }
+
     req.user = {
       id: dbUser.id,
       username: dbUser.username,
@@ -175,14 +243,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
     }
     return res.status(401).json({
-      error: 'Authentication failed: ' + (err.message || 'Unknown error')
+      error: 'Invalid authentication token.'
     });
   }
 }
 
 /**
- * Safely retrieve or auto-provision user record in PostgreSQL database.
- * Handles both Supabase Auth UUIDs and local accounts without unique collision errors.
+ * Retrieve or auto-provision a GUEST profile for a cryptographically verified identity.
+ * Role is never taken from client or JWT metadata. Existing users are matched by id only.
  */
 export async function syncOrGetSupabaseProfile(userPayload: {
   id: string;
@@ -193,53 +261,57 @@ export async function syncOrGetSupabaseProfile(userPayload: {
   userMetadata?: any;
 }): Promise<AuthUserPayload & { isActive: boolean }> {
   const userId = String(userPayload.id).trim();
+  if (!userId) {
+    throw new Error('User identifier is required.');
+  }
+
   const usernameOrEmail = (userPayload.email || userPayload.username || userPayload.userMetadata?.email || '').toLowerCase().trim();
   const metaFullName = userPayload.fullName || userPayload.userMetadata?.full_name || userPayload.userMetadata?.name || (usernameOrEmail ? usernameOrEmail.split('@')[0] : 'User');
-  const metaRole: UserRole = (userPayload.role || userPayload.userMetadata?.role as UserRole) || 'MANAGER';
 
-  // 1. Search existing record by ID or Username
   const userDbResult = await pool.query(
-    'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 OR (username != \'\' AND LOWER(username) = $2) LIMIT 1',
-    [userId, usernameOrEmail]
+    'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 LIMIT 1',
+    [userId]
   );
 
   let dbUser;
 
   if (userDbResult.rows.length > 0) {
     dbUser = userDbResult.rows[0];
-    
-    // Update last_login_at timestamp
     await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [dbUser.id]).catch(() => {});
   } else {
-    // 2. Provision new user in database
     const assignedUsername = usernameOrEmail || `user_${userId.slice(0, 8)}`;
-
-    // If first user, make ADMIN, otherwise default to metaRole
-    const countRes = await pool.query("SELECT COUNT(*) as count FROM users WHERE role = 'ADMIN'");
-    const adminCount = parseInt(countRes.rows[0]?.count || '0', 10);
-    const assignedRole: UserRole = adminCount === 0 ? 'ADMIN' : metaRole;
+    const assignedRole: UserRole = 'GUEST';
 
     try {
       const insertRes = await pool.query(`
         INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at)
         VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP)
-        ON CONFLICT (id) DO UPDATE SET 
-          full_name = EXCLUDED.full_name,
+        ON CONFLICT (id) DO UPDATE SET
           last_login_at = CURRENT_TIMESTAMP
         RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
       `, [userId, assignedUsername, assignedRole, metaFullName]);
 
       dbUser = insertRes.rows[0];
     } catch (insertErr) {
-      // Fallback query if conflict happened on username
       const fallbackQuery = await pool.query(
-        'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 OR LOWER(username) = $2 LIMIT 1',
-        [userId, assignedUsername]
+        'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 LIMIT 1',
+        [userId]
       );
       if (fallbackQuery.rows.length > 0) {
         dbUser = fallbackQuery.rows[0];
       } else {
-        throw insertErr;
+        const uniqueUsername = `${assignedUsername.replace(/@.*/, '')}_${userId.slice(0, 8)}`.slice(0, 100);
+        const retryRes = await pool.query(`
+          INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at)
+          VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP)
+          ON CONFLICT (id) DO NOTHING
+          RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
+        `, [userId, uniqueUsername, assignedRole, metaFullName]);
+        if (retryRes.rows.length > 0) {
+          dbUser = retryRes.rows[0];
+        } else {
+          throw insertErr;
+        }
       }
     }
   }

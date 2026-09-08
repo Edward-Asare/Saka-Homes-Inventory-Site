@@ -5,10 +5,10 @@ import bcrypt from 'bcryptjs';
 
 const { Pool } = pg;
 
-const BCRYPT_SALT_ROUNDS = 10;
+const BCRYPT_SALT_ROUNDS = 12;
 
 /**
- * Strong password hashing using bcrypt with 10 salt rounds.
+ * Strong password hashing using bcrypt with 12 salt rounds.
  * Passwords are never logged or stored in plaintext.
  */
 export async function hashPassword(password: string): Promise<string> {
@@ -18,7 +18,6 @@ export async function hashPassword(password: string): Promise<string> {
 
 /**
  * Secure password comparison against stored bcrypt hash.
- * Also supports graceful backwards compatibility for any legacy pbkdf2 hash.
  */
 export async function comparePassword(password: string, storedHash: string): Promise<boolean> {
   if (!password || !storedHash) return false;
@@ -33,16 +32,10 @@ export async function comparePassword(password: string, storedHash: string): Pro
     }
   }
 
-  // Legacy fallback for previous PBKDF2 hash (auto-migrated upon successful login/password change)
   try {
     const legacyHash = crypto.pbkdf2Sync(password, 'saka_homes_salt_2026', 10000, 64, 'sha512').toString('hex');
     if (legacyHash === storedHash) return true;
   } catch {}
-
-  // Direct match fallback for legacy raw seeds
-  if (storedHash === password) {
-    return true;
-  }
 
   return false;
 }
@@ -70,8 +63,12 @@ export function generateTemporaryPassword(): string {
     result += allChars.charAt(crypto.randomInt(0, allChars.length));
   }
 
-  // Shuffle the result array
-  return result.split('').sort(() => 0.5 - Math.random()).join('');
+  const chars = result.split('');
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 /**
@@ -147,7 +144,7 @@ export async function recordActivityLog(
       params.actorId || null,
       params.actorUsername,
       params.actorName || null,
-      params.actorRole || 'ADMIN',
+      params.actorRole || 'GUEST',
       params.targetId || null,
       params.targetName || null,
       params.actionSummary,
@@ -158,6 +155,17 @@ export async function recordActivityLog(
   } catch (err: any) {
     console.error('[ACTIVITY AUDIT] Failed to record activity log:', err.message);
   }
+}
+
+function sslConfig(isRemote: boolean): { ssl?: { rejectUnauthorized: boolean } } {
+  if (!isRemote) return {};
+  const override = process.env.PGSSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
+  const rejectUnauthorized = override === 'true'
+    ? true
+    : override === 'false'
+      ? false
+      : process.env.NODE_ENV === 'production';
+  return { ssl: { rejectUnauthorized } };
 }
 
 function buildPoolConfig(): PoolConfig {
@@ -175,7 +183,7 @@ function buildPoolConfig(): PoolConfig {
 
     return {
       connectionString: url,
-      ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+      ...sslConfig(isRemote),
       max: 10,
       idleTimeoutMillis: 15000,
       connectionTimeoutMillis: 10000,
@@ -198,7 +206,7 @@ function buildPoolConfig(): PoolConfig {
     user,
     password,
     database,
-    ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
+    ...sslConfig(isRemote),
     max: 10,
     idleTimeoutMillis: 15000,
     connectionTimeoutMillis: 10000,
@@ -258,45 +266,49 @@ export async function initializeDatabase() {
       );
     `);
 
-    // Bootstrap Initial System Accounts (Admin, Guest)
-    // We safely upsert default accounts with fresh, valid bcrypt hashes and active status
+    // Bootstrap initial accounts only when they do not already exist.
+    // Never overwrite password_hash, role, or is_active on existing rows.
     const initialAdminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
-    const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
+    const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD?.trim();
     const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
-    const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD || 'guest123';
+    const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD?.trim();
 
-    const adminHash = await hashPassword(initialAdminPassword);
-    const guestHash = await hashPassword(initialGuestPassword);
+    const existingAdmin = await client.query(
+      "SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1"
+    );
 
-    const defaultAccounts = [
-      { id: 'usr_admin_01', username: initialAdminUsername, hash: adminHash, role: 'ADMIN', name: initialAdminName },
-      { id: 'usr_guest_01', username: 'guest@sakainventory', hash: guestHash, role: 'GUEST', name: 'Guest User' },
-      { id: 'usr_admin_alias', username: 'admin', hash: adminHash, role: 'ADMIN', name: initialAdminName },
-      { id: 'usr_guest_alias', username: 'guest', hash: guestHash, role: 'GUEST', name: 'Guest User' }
-    ];
-
-    for (const acc of defaultAccounts) {
-      // Find existing record by username or id
-      const existing = await client.query(
-        'SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR id = $2 LIMIT 1',
-        [acc.username, acc.id]
-      );
-
-      if (existing.rows.length > 0) {
-        await client.query(`
-          UPDATE users 
-          SET username = $1, password_hash = $2, role = $3, full_name = $4, is_active = TRUE, must_change_password = FALSE
-          WHERE id = $5
-        `, [acc.username, acc.hash, acc.role, acc.name, existing.rows[0].id]);
+    if (existingAdmin.rows.length === 0) {
+      if (!initialAdminPassword || initialAdminPassword.length < 12) {
+        const message = 'No administrator exists and INITIAL_ADMIN_PASSWORD is missing or shorter than 12 characters. Set INITIAL_ADMIN_PASSWORD to create the first admin account.';
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error(message);
+        }
+        console.error(`[BOOTSTRAP] ${message}`);
       } else {
+        const adminHash = await hashPassword(initialAdminPassword);
         await client.query(`
           INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-          VALUES ($1, $2, $3, $4, $5, TRUE, FALSE, 1)
-        `, [acc.id, acc.username, acc.hash, acc.role, acc.name]);
+          VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, TRUE, 1)
+          ON CONFLICT (id) DO NOTHING
+        `, [initialAdminUsername, adminHash, initialAdminName]);
+        console.log(`[BOOTSTRAP] Created initial administrator (${initialAdminUsername}). Password change required on first login.`);
       }
+    } else {
+      console.log('[BOOTSTRAP] Administrator account already present; leaving credentials unchanged.');
     }
 
-    console.log(`[BOOTSTRAP] System accounts verified and active (${initialAdminUsername}, guest@sakainventory).`);
+    if (initialGuestPassword && initialGuestPassword.length >= 8) {
+      const existingGuest = await client.query(
+        "SELECT id FROM users WHERE id = 'usr_guest_01' OR LOWER(username) = 'guest@sakainventory' LIMIT 1"
+      );
+      if (existingGuest.rows.length === 0) {
+        const guestHash = await hashPassword(initialGuestPassword);
+        await client.query(`
+          INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
+          VALUES ('usr_guest_01', 'guest@sakainventory', $1, 'GUEST', 'Guest User', TRUE, TRUE, 1)
+        `, [guestHash]);
+      }
+    }
 
     // 1. Categories Table
     await client.query(`

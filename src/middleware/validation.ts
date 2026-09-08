@@ -98,11 +98,7 @@ export const updateInventoryItemSchema = z.object({
   unitOfMeasure: z.string().trim().min(1).max(100).optional(),
   minStockLevel: z.coerce.number().min(0).max(1000000).optional(),
   maxStockLevel: z.coerce.number().min(1).max(10000000).optional(),
-  quantity: z.coerce.number().min(0).max(10000000).optional(),
-  reorderQty: z.coerce.number().min(0).max(1000000).optional(),
-  currentStock: z.coerce.number().min(0).max(10000000).optional(),
   unitCost: z.coerce.number().min(0).max(10000000).optional(),
-  status: z.enum(['IN STOCK', 'LOW STOCK', 'OUT OF STOCK']).optional(),
   supplier: z.string().trim().max(255).nullish().transform(v => v ?? ''),
   dateReceived: z.string().trim().max(100).nullish().transform(v => v ?? ''),
   lastRestocked: z.string().trim().max(100).nullish().transform(v => v ?? ''),
@@ -137,7 +133,6 @@ export const createPOSchema = z.object({
   unitCost: z.coerce.number().min(0, 'Unit cost must be >= 0').max(10000000).default(0),
   orderDate: z.string().trim().max(100).nullish().transform(v => v || new Date().toISOString().split('T')[0]),
   expectedDate: z.string().trim().max(100).nullish().transform(v => v ?? ''),
-  status: z.enum(['PENDING', 'COMPLETED', 'CANCELLED']).default('PENDING'),
   notes: z.string().max(2000).nullish().transform(v => v ?? '')
 });
 

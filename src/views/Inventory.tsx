@@ -210,18 +210,14 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
       calcStatus = 'LOW STOCK';
     }
 
-    const itemData = {
+    const itemData: Record<string, any> = {
       itemCode: rawItemCode,
       itemName: (formData.get('itemName') as string || '').trim(),
       category: (formData.get('category') as string || '').trim(),
       unitOfMeasure: (formData.get('unitOfMeasure') as string || 'Units').trim(),
       minStockLevel: minLevel,
       maxStockLevel: editingItem?.maxStockLevel || Math.max(1000, minLevel * 10, quantity * 5),
-      reorderQty: quantity,
-      currentStock: quantity,
       unitCost: Number(formData.get('unitCost') || 0),
-      totalValue: Number(formData.get('unitCost') || 0) * quantity,
-      status: (formData.get('status') as any) || calcStatus,
       supplier: (formData.get('supplier') as string || '').trim(),
       lastRestocked: dateReceived,
       nextReviewDate: (formData.get('nextReviewDate') as string) || '',
@@ -229,12 +225,19 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
       createdBy: currentUser?.username || currentUser?.fullName || 'admin',
     };
 
+    if (!editingItem) {
+      itemData.reorderQty = quantity;
+      itemData.currentStock = quantity;
+      itemData.totalValue = Number(formData.get('unitCost') || 0) * quantity;
+      itemData.status = calcStatus;
+    }
+
     try {
       setIsSubmitting(true);
       if (editingItem) {
         await inventoryService.updateItem(editingItem.id, itemData);
       } else {
-        await inventoryService.addItem(itemData);
+        await inventoryService.addItem(itemData as Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>);
         categoryService.syncItemCount(itemData.category);
       }
       setIsModalOpen(false);
@@ -482,6 +485,8 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   <p className="text-[11px] font-mono text-slate-400 mt-0.5">{item.itemCode || 'N/A'}</p>
 
                   <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
+                    {!isViewer && (
+                    <>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Unit Cost</p>
                       <p className="font-heading font-extrabold text-slate-900 text-sm">{formatCurrency(item.unitCost)}</p>
@@ -490,6 +495,14 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                       <p className="text-[10px] uppercase font-bold text-slate-400">Valuation</p>
                       <p className="font-heading font-extrabold text-[#E54818] text-sm">{formatCurrency((item.unitCost || 0) * currStock)}</p>
                     </div>
+                    </>
+                    )}
+                    {isViewer && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase font-bold text-slate-400">On Hand</p>
+                      <p className="font-heading font-extrabold text-slate-900 text-sm">{currStock} {item.unitOfMeasure}</p>
+                    </div>
+                    )}
                   </div>
 
                   {/* Meter */}
@@ -571,7 +584,9 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Quantity</th>
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Min Level</th>
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Date Received</th>
+                  {!isViewer && (
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Unit Cost</th>
+                  )}
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
@@ -615,9 +630,11 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     <td className="px-6 py-4 text-slate-500 font-mono text-[11px]">
                       {item.lastRestocked || '-'}
                     </td>
+                    {!isViewer && (
                     <td className="px-6 py-4 font-bold text-blue-600">
                       {formatCurrency(item.unitCost)}
                     </td>
+                    )}
                     <td className="px-6 py-4">
                       <span className={cn(
                         "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider",
@@ -828,10 +845,14 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                       name="quantity" 
                       min="0"
                       defaultValue={editingItem ? (editingItem.currentStock !== undefined ? editingItem.currentStock : editingItem.reorderQty) : undefined} 
-                      required 
+                      required={!editingItem}
+                      disabled={Boolean(editingItem)}
                       placeholder="e.g. 100" 
-                      className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold text-slate-900" 
+                      className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all font-bold text-slate-900 disabled:text-slate-500" 
                     />
+                    {editingItem && (
+                      <p className="text-[11px] text-slate-500">Stock quantity can only be changed through Stock Movements (issue, restock, or adjustment).</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -861,6 +882,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                     />
                   </div>
 
+                  {!editingItem && (
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Status</label>
                     <select name="status" defaultValue={editingItem?.status || 'IN STOCK'} className="w-full px-4 py-3 bg-[#F1F5F9] rounded-xl outline-none focus:ring-2 focus:ring-blue-400 border-2 border-transparent focus:bg-white transition-all appearance-none font-medium">
@@ -869,6 +891,7 @@ export default function Inventory({ searchQuery, forceOpenModal, onModalClose, o
                       <option value="OUT OF STOCK">OUT OF STOCK</option>
                     </select>
                   </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase text-[#64748B] tracking-wider">Supplier</label>

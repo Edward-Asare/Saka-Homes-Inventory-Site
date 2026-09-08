@@ -84,9 +84,8 @@ export default function App() {
           // If Supabase is active and has an existing session, restore it
           if (supabase && isSupabaseConfigured) {
             const { data } = await supabase.auth.getSession();
-            if (data.session) {
-              localStorage.setItem('saka_auth_token', data.session.access_token);
-              const user = await authService.verifySession();
+            if (data.session?.access_token) {
+              const user = await authService.syncSupabaseAccessToken(data.session.access_token);
               if (user) setAppUser(user);
             }
           }
@@ -104,10 +103,13 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     if (supabase && isSupabaseConfigured) {
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.access_token) {
-          localStorage.setItem('saka_auth_token', session.access_token);
-          const user = await authService.verifySession();
-          if (user) setAppUser(user);
+        if (session?.access_token && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+          try {
+            const user = await authService.syncSupabaseAccessToken(session.access_token);
+            if (user) setAppUser(user);
+          } catch (err) {
+            console.warn('Supabase session sync notice:', err);
+          }
         } else if (event === 'SIGNED_OUT') {
           setAppUser(null);
         }
@@ -246,15 +248,12 @@ export default function App() {
     if (item.id === 'users') {
       return appUser?.role === 'ADMIN';
     }
-    // Activity Logs visible to Admin and Manager
     if (item.id === 'activity-logs') {
       return appUser?.role === 'ADMIN' || appUser?.role === 'MANAGER';
     }
-    // Operational views (Stock Movements, POs, Categories) visible to Admin and Manager
-    if (item.id === 'stock-movements' || item.id === 'purchase-orders' || item.id === 'categories') {
+    if (item.id === 'stock-movements' || item.id === 'purchase-orders' || item.id === 'categories' || item.id === 'reports') {
       return appUser?.role === 'ADMIN' || appUser?.role === 'MANAGER';
     }
-    // Dashboard, Inventory, Reports visible to all
     return true;
   });
 
@@ -429,6 +428,20 @@ export default function App() {
             
           </motion.div>
         </div>
+      </div>
+    );
+  }
+
+  if (appUser.mustChangePassword) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5]">
+        <ForcedChangePasswordModal
+          user={appUser}
+          onPasswordChanged={(updatedUser) => {
+            setAppUser(updatedUser);
+          }}
+          onLogout={handleLogout}
+        />
       </div>
     );
   }
@@ -673,7 +686,7 @@ export default function App() {
               {activeView === 'categories' && (
                 <Categories searchQuery={searchQuery} userRole={appUser.role} currentUser={appUser} onAccessDenied={triggerAccessDenied} />
               )}
-              {activeView === 'reports' && (
+              {activeView === 'reports' && (appUser.role === 'ADMIN' || appUser.role === 'MANAGER') && (
                 <Reports searchQuery={searchQuery} currentUser={appUser} />
               )}
               {activeView === 'activity-logs' && (appUser.role === 'ADMIN' || appUser.role === 'MANAGER') && (
@@ -686,17 +699,6 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
-
-      {/* Forced Change Password Modal Overlay (for temporary or reset passwords) */}
-      {appUser.mustChangePassword && (
-        <ForcedChangePasswordModal
-          user={appUser}
-          onPasswordChanged={(updatedUser) => {
-            setAppUser(updatedUser);
-          }}
-          onLogout={handleLogout}
-        />
-      )}
 
       {/* Access Denied Modal Popup */}
       <AccessDeniedModal
