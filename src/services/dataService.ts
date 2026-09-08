@@ -23,20 +23,6 @@ export const authService = {
   login: async (username: string, password: string): Promise<AppUser> => {
     const trimmed = username.trim();
 
-    // If Supabase is configured and the user entered an email, try Supabase Auth first
-    if (supabase && isSupabaseConfigured && trimmed.includes('@') && !trimmed.endsWith('@sakainventory')) {
-      try {
-        return await authService.loginWithSupabase(trimmed, password);
-      } catch (supabaseErr: any) {
-        const msg = (supabaseErr.message || '').toLowerCase();
-        // If Supabase Auth gave an explicit failure like email unconfirmed or bad password, don't silently swallow
-        if (msg.includes('email not confirmed')) {
-          throw supabaseErr;
-        }
-        // If credentials failed on Supabase, still attempt fallback to local database
-      }
-    }
-
     const res = await fetchApi<{ success: boolean; token: string; user: AppUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username: trimmed, password }),
@@ -72,21 +58,36 @@ export const authService = {
 
   verifySession: async (): Promise<AppUser | null> => {
     const token = getStoredAuthToken();
-    if (!token) return null;
-    try {
-      const user = await fetchApi<AppUser>('/api/auth/me');
-      localStorage.setItem('saka_app_user', JSON.stringify(user));
-      return user;
-    } catch {
-      authService.logout();
-      return null;
+    if (token) {
+      try {
+        const user = await fetchApi<AppUser>('/api/auth/me', { skipAuthLogout: true });
+        localStorage.setItem('saka_app_user', JSON.stringify(user));
+        return user;
+      } catch {
+        // Fall through to Supabase session exchange
+      }
     }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) {
+          return await authService.syncSupabaseSession(data.session.access_token);
+        }
+      } catch {
+        // ignore and logout locally
+      }
+    }
+
+    await authService.logout();
+    return null;
   },
 
   logout: async () => {
     try {
       if (supabase && isSupabaseConfigured) {
-        await supabase.auth.signOut();
+        // Local scope avoids a 403 from Supabase /logout when the session is already gone
+        await supabase.auth.signOut({ scope: 'local' });
       }
     } catch (e) {
       console.warn('Supabase signOut notice:', e);
@@ -95,6 +96,22 @@ export const authService = {
     localStorage.removeItem('saka_app_user');
     localStorage.removeItem('saka_last_activity_timestamp');
     window.dispatchEvent(new CustomEvent('saka:logout'));
+  },
+
+  syncSupabaseSession: async (accessToken: string): Promise<AppUser> => {
+    const syncRes = await fetchApi<{ success: boolean; user: AppUser; token?: string }>('/api/auth/supabase-sync', {
+      method: 'POST',
+      skipAuthLogout: true,
+      body: JSON.stringify({ accessToken }),
+    });
+
+    if (syncRes.token) {
+      localStorage.setItem('saka_auth_token', syncRes.token);
+    }
+    if (syncRes.user) {
+      localStorage.setItem('saka_app_user', JSON.stringify(syncRes.user));
+    }
+    return syncRes.user;
   },
 
   loginWithSupabase: async (email: string, password: string): Promise<AppUser> => {
@@ -113,11 +130,11 @@ export const authService = {
         }
         throw new Error(error.message || 'Supabase authentication failed.');
       }
-      if (!data.session) {
+      if (!data.session?.access_token) {
         throw new Error('No active session returned from Supabase Auth.');
       }
 
-      return await authService.syncSupabaseAccessToken(data.session.access_token);
+      return await authService.syncSupabaseSession(data.session.access_token);
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes('Invalid path') || msg.includes('Failed to construct') || msg.includes('fetch')) {
@@ -128,22 +145,7 @@ export const authService = {
   },
 
   syncSupabaseAccessToken: async (accessToken: string): Promise<AppUser> => {
-    const syncRes = await fetchApi<{ success: boolean; user: AppUser; token?: string }>('/api/auth/supabase-sync', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        accessToken,
-      })
-    });
-
-    const user = syncRes.user;
-    if (syncRes.token) {
-      localStorage.setItem('saka_auth_token', syncRes.token);
-    }
-    localStorage.setItem('saka_app_user', JSON.stringify(user));
-    return user;
+    return authService.syncSupabaseSession(accessToken);
   },
 
   getUsers: async (): Promise<AppUser[]> => {
@@ -189,24 +191,33 @@ export const authService = {
 };
 
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function fetchApi<T>(
+  endpoint: string,
+  options?: RequestInit & { skipAuthLogout?: boolean }
+): Promise<T> {
   const token = getStoredAuthToken();
   const existingHeaders = options?.headers || {};
+  const skipAuthLogout = Boolean(options?.skipAuthLogout);
+  const { skipAuthLogout: _ignored, ...fetchOptions } = options || {};
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(existingHeaders as Record<string, string>),
   };
 
+  const isPublicAuthEndpoint =
+    endpoint === '/api/auth/login' ||
+    endpoint === '/api/health' ||
+    endpoint === '/api/auth/supabase-sync';
+
   if (token && !headers['Authorization'] && !headers['authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
-  } else if (!headers['Authorization'] && !headers['authorization'] && endpoint !== '/api/auth/login' && endpoint !== '/api/health' && endpoint !== '/api/auth/supabase-sync') {
-    // If no token exists and requesting a protected endpoint, throw informative auth error
+  } else if (!token && !headers['Authorization'] && !headers['authorization'] && !isPublicAuthEndpoint) {
     throw new Error('Authentication required. Please sign in with your credentials.');
   }
 
   const res = await fetch(endpoint, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -226,7 +237,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     }
 
     if (res.status === 401) {
-      if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync') {
+      if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync' || skipAuthLogout) {
         errMsg = errMsg || 'Unauthorized (401): Invalid username or password.';
       } else {
         authService.logout();

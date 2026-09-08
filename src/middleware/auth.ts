@@ -10,9 +10,20 @@ function sanitizeSecret(raw?: string): string {
   return (raw || '').trim().replace(/^["']|["']$/g, '');
 }
 
+const JWT_SIGN_OPTIONS: jwt.SignOptions = {
+  expiresIn: '12h',
+  algorithm: 'HS256',
+  issuer: 'saka-homes-inventory'
+};
+
+const JWT_VERIFY_OPTIONS: jwt.VerifyOptions = {
+  algorithms: ['HS256'],
+  issuer: 'saka-homes-inventory'
+};
+
 /**
- * Signing secret for application-issued JWTs.
- * Production must set JWT_SECRET; development may fall back to an ephemeral secret.
+ * Application JWT secret. Never falls back to an unsigned-token path.
+ * Production requires JWT_SECRET (or SUPABASE_JWT_SECRET) to be configured.
  */
 export function getJwtSecret(): string {
   const appSecret = sanitizeSecret(process.env.JWT_SECRET);
@@ -21,17 +32,17 @@ export function getJwtSecret(): string {
   }
 
   const supabaseSecret = sanitizeSecret(process.env.SUPABASE_JWT_SECRET);
-  if (supabaseSecret && process.env.NODE_ENV !== 'production') {
+  if (supabaseSecret) {
     return supabaseSecret;
   }
 
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET is required when NODE_ENV=production.');
+    throw new Error('JWT_SECRET (or SUPABASE_JWT_SECRET) must be configured in production.');
   }
 
   if (!runtimeEphemeralSecret) {
     runtimeEphemeralSecret = crypto.randomBytes(32).toString('hex');
-    console.warn('[SECURITY] No JWT_SECRET configured. Generated an ephemeral in-memory secret. Sessions will not survive process restarts.');
+    console.warn('[SECURITY] No JWT_SECRET configured. Generated an ephemeral in-memory secret for local development only. Sessions will not survive process restarts.');
   }
   return runtimeEphemeralSecret;
 }
@@ -49,11 +60,16 @@ export function getJwtVerificationSecrets(): string[] {
 }
 
 export function validateSecurityConfig(): void {
-  if (process.env.NODE_ENV === 'production') {
-    const secret = sanitizeSecret(process.env.JWT_SECRET);
-    if (!secret || secret.length < 32) {
-      throw new Error('JWT_SECRET must be set to a strong value (32+ characters) when NODE_ENV=production.');
-    }
+  if (process.env.NODE_ENV !== 'production') {
+    return;
+  }
+
+  const jwtSecret = sanitizeSecret(process.env.JWT_SECRET);
+  const supabaseSecret = sanitizeSecret(process.env.SUPABASE_JWT_SECRET);
+  const secret = jwtSecret || supabaseSecret;
+
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET or SUPABASE_JWT_SECRET must be set to a strong value (32+ characters) when NODE_ENV=production.');
   }
 }
 
@@ -104,7 +120,7 @@ export function generateAuthToken(user: { id: string; username: string; role: st
       tokenVersion: user.tokenVersion || 1
     },
     secret,
-    { expiresIn: '24h' }
+    JWT_SIGN_OPTIONS
   );
 }
 
@@ -146,6 +162,84 @@ export interface SupabaseJwtPayload {
   };
   exp?: number;
   iat?: number;
+  tokenVersion?: number;
+}
+
+function isTokenExpiredError(err: any): boolean {
+  return err?.name === 'TokenExpiredError';
+}
+
+/**
+ * Verify an application-issued JWT. Never accepts unsigned / decoded-only tokens.
+ */
+export function verifyAppToken(token: string): jwt.JwtPayload {
+  return jwt.verify(token, getJwtSecret(), JWT_VERIFY_OPTIONS) as jwt.JwtPayload;
+}
+
+/**
+ * Confirm a Supabase access token with the Supabase Auth API (signature checked
+ * by Supabase). Falls back to local HMAC verification when SUPABASE_JWT_SECRET is set.
+ */
+export async function verifySupabaseAccessToken(token: string): Promise<{
+  id: string;
+  email?: string;
+  fullName?: string;
+  userMetadata?: Record<string, any>;
+} | null> {
+  const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
+  const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
+
+  if (rawSupabaseUrl && rawAnonKey) {
+    try {
+      const endpoint = `${rawSupabaseUrl.replace(/\/$/, '')}/auth/v1/user`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: rawAnonKey
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        console.warn('[AUTH] Supabase token introspection returned', res.status);
+      } else {
+        const data: any = await res.json();
+        if (data?.id) {
+          return {
+            id: String(data.id),
+            email: data.email,
+            fullName: data.user_metadata?.full_name || data.user_metadata?.name,
+            userMetadata: data.user_metadata || {}
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[AUTH] Supabase token introspection failed:', (err as Error).message);
+    }
+  }
+
+  const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET?.trim();
+  if (supabaseJwtSecret) {
+    try {
+      const decoded = jwt.verify(token, supabaseJwtSecret, { algorithms: ['HS256'] }) as jwt.JwtPayload;
+      const userId = decoded.sub || (decoded as any).userId || (decoded as any).id;
+      if (!userId) return null;
+      return {
+        id: String(userId),
+        email: (decoded as any).email || (decoded as any).username,
+        fullName: (decoded as any).user_metadata?.full_name || (decoded as any).user_metadata?.name || (decoded as any).fullName,
+        userMetadata: (decoded as any).user_metadata || {}
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 function requestPath(req: Request): string {
@@ -159,10 +253,22 @@ function isAllowedDuringForcedPasswordChange(req: Request): boolean {
   return false;
 }
 
+function rejectIfPasswordChangeRequired(req: Request, res: Response): boolean {
+  if (req.user?.mustChangePassword && !isAllowedDuringForcedPasswordChange(req)) {
+    res.status(403).json({
+      error: 'Password change required before you can access this resource.',
+      mustChangePassword: true
+    });
+    return true;
+  }
+  return false;
+}
+
 /**
  * Middleware: Verify Bearer JWT Token.
- * Validates tokens issued by the app or by Supabase Auth (when SUPABASE_JWT_SECRET is set).
- * Attaches req.user from the database RBAC record, never from unverified claims.
+ * App tokens must verify against the application secret. Legacy Supabase access
+ * tokens are confirmed with Supabase (never via jwt.decode). req.user is loaded
+ * from the database RBAC record, never from unverified claims.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -181,28 +287,68 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const decoded = verifySignedToken(token);
+    let decoded: jwt.JwtPayload | null = null;
+    try {
+      decoded = verifyAppToken(token);
+    } catch (verifyErr: any) {
+      if (isTokenExpiredError(verifyErr)) {
+        return res.status(401).json({
+          error: 'Session expired. Please sign in again.'
+        });
+      }
 
-    if (!decoded || (!decoded.sub && !decoded.userId && !(decoded as any).id)) {
+      // Compatibility: a Supabase access token may still be in localStorage.
+      // Verify it with Supabase (never via jwt.decode) and map to the local user.
+      const supabaseIdentity = await verifySupabaseAccessToken(token);
+      if (!supabaseIdentity) {
+        return res.status(401).json({
+          error: 'Invalid authentication token.'
+        });
+      }
+
+      const synced = await syncOrGetSupabaseProfile({
+        id: supabaseIdentity.id,
+        email: supabaseIdentity.email,
+        fullName: supabaseIdentity.fullName,
+        userMetadata: supabaseIdentity.userMetadata
+      });
+
+      if (!synced.isActive) {
+        return res.status(403).json({
+          error: 'Your account has been deactivated. Please contact your system administrator.'
+        });
+      }
+
+      req.user = {
+        id: synced.id,
+        username: synced.username,
+        fullName: synced.fullName,
+        role: synced.role as UserRole,
+        mustChangePassword: Boolean(synced.mustChangePassword),
+        tokenVersion: synced.tokenVersion
+      };
+      if (rejectIfPasswordChangeRequired(req, res)) return;
+      return next();
+    }
+
+    if (!decoded || (!decoded.sub && !(decoded as any).userId && !(decoded as any).id)) {
       return res.status(401).json({
         error: 'Invalid authentication token: missing user identifier.'
       });
     }
 
-    const userId = String(decoded.sub || decoded.userId || (decoded as any).id);
+    const userId = String(decoded.sub || (decoded as any).userId || (decoded as any).id);
     const usernameOrEmail = String(
-      decoded.username || decoded.email || (decoded as any).user_metadata?.email || ''
+      (decoded as any).username || (decoded as any).email || (decoded as any).user_metadata?.email || ''
     ).toLowerCase().trim();
-    const fullName =
-      (decoded as any).fullName ||
-      (decoded as any).user_metadata?.full_name ||
-      (decoded as any).user_metadata?.name;
 
-    const dbUser = await syncOrGetSupabaseProfile({
-      id: userId,
-      email: usernameOrEmail,
-      fullName
-    });
+    const dbUser = await getActiveUserRecord(userId, usernameOrEmail);
+
+    if (!dbUser) {
+      return res.status(401).json({
+        error: 'Invalid authentication token.'
+      });
+    }
 
     if (!dbUser.isActive) {
       return res.status(403).json({
@@ -210,19 +356,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
     }
 
-    if (
-      typeof decoded.tokenVersion === 'number' &&
-      decoded.tokenVersion !== (dbUser.tokenVersion || 1)
-    ) {
+    const presentedVersion = Number((decoded as any).tokenVersion ?? 1);
+    const currentVersion = Number(dbUser.tokenVersion || 1);
+    if (presentedVersion !== currentVersion) {
       return res.status(401).json({
         error: 'Session has been revoked. Please sign in again.'
-      });
-    }
-
-    if (dbUser.mustChangePassword && !isAllowedDuringForcedPasswordChange(req)) {
-      return res.status(403).json({
-        error: 'Password change required before you can access this resource.',
-        mustChangePassword: true
       });
     }
 
@@ -235,9 +373,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       tokenVersion: dbUser.tokenVersion
     };
 
+    if (rejectIfPasswordChangeRequired(req, res)) return;
     next();
   } catch (err: any) {
-    if (err.name === 'TokenExpiredError') {
+    if (isTokenExpiredError(err)) {
       return res.status(401).json({
         error: 'Session expired. Please sign in again.'
       });
@@ -249,8 +388,48 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 /**
- * Retrieve or auto-provision a GUEST profile for a cryptographically verified identity.
- * Role is never taken from client or JWT metadata. Existing users are matched by id only.
+ * Load an existing user. Does not auto-provision from untrusted JWT claims.
+ */
+async function getActiveUserRecord(
+  userId: string,
+  usernameOrEmail: string
+): Promise<(AuthUserPayload & { isActive: boolean }) | null> {
+  const userDbResult = await pool.query(
+    `SELECT id, username, full_name, is_active, token_version, role, must_change_password
+     FROM users
+     WHERE id = $1 OR ($2 <> '' AND LOWER(username) = $2)
+     LIMIT 1`,
+    [userId, usernameOrEmail]
+  );
+
+  if (userDbResult.rows.length === 0) {
+    return null;
+  }
+
+  const dbUser = userDbResult.rows[0];
+  return {
+    id: dbUser.id,
+    username: dbUser.username,
+    fullName: dbUser.full_name || dbUser.username,
+    role: dbUser.role as UserRole,
+    isActive: Boolean(dbUser.is_active),
+    mustChangePassword: Boolean(dbUser.must_change_password),
+    tokenVersion: dbUser.token_version || 1
+  };
+}
+
+const ALLOWED_PROVISION_ROLES: UserRole[] = ['GUEST', 'VIEWER', 'MANAGER'];
+
+function sanitizeProvisionRole(role: unknown): UserRole {
+  if (typeof role === 'string' && ALLOWED_PROVISION_ROLES.includes(role as UserRole)) {
+    return role as UserRole;
+  }
+  return 'GUEST';
+}
+
+/**
+ * Retrieve or auto-provision a user after a *verified* Supabase identity.
+ * Client-supplied ADMIN roles are ignored. The first account becomes ADMIN.
  */
 export async function syncOrGetSupabaseProfile(userPayload: {
   id: string;
@@ -261,16 +440,24 @@ export async function syncOrGetSupabaseProfile(userPayload: {
   userMetadata?: any;
 }): Promise<AuthUserPayload & { isActive: boolean }> {
   const userId = String(userPayload.id).trim();
-  if (!userId) {
-    throw new Error('User identifier is required.');
+  if (!userId || userId.length > 64) {
+    throw Object.assign(new Error('Invalid user identifier.'), { expose: true, status: 400 });
   }
 
-  const usernameOrEmail = (userPayload.email || userPayload.username || userPayload.userMetadata?.email || '').toLowerCase().trim();
-  const metaFullName = userPayload.fullName || userPayload.userMetadata?.full_name || userPayload.userMetadata?.name || (usernameOrEmail ? usernameOrEmail.split('@')[0] : 'User');
+  const usernameOrEmail = (userPayload.email || userPayload.username || userPayload.userMetadata?.email || '')
+    .toLowerCase()
+    .trim()
+    .slice(0, 255);
+  const metaFullName = String(
+    userPayload.fullName || userPayload.userMetadata?.full_name || userPayload.userMetadata?.name || (usernameOrEmail ? usernameOrEmail.split('@')[0] : 'User')
+  ).slice(0, 255);
 
   const userDbResult = await pool.query(
-    'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 LIMIT 1',
-    [userId]
+    `SELECT id, username, full_name, is_active, token_version, role, must_change_password
+     FROM users
+     WHERE id = $1 OR (username != '' AND LOWER(username) = $2)
+     LIMIT 1`,
+    [userId, usernameOrEmail]
   );
 
   let dbUser;
@@ -280,7 +467,9 @@ export async function syncOrGetSupabaseProfile(userPayload: {
     await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [dbUser.id]).catch(() => {});
   } else {
     const assignedUsername = usernameOrEmail || `user_${userId.slice(0, 8)}`;
-    const assignedRole: UserRole = 'GUEST';
+    const countRes = await pool.query("SELECT COUNT(*) as count FROM users WHERE role = 'ADMIN'");
+    const adminCount = parseInt(countRes.rows[0]?.count || '0', 10);
+    const assignedRole: UserRole = adminCount === 0 ? 'ADMIN' : sanitizeProvisionRole(userPayload.role);
 
     try {
       const insertRes = await pool.query(`
@@ -328,8 +517,23 @@ export async function syncOrGetSupabaseProfile(userPayload: {
 }
 
 /**
+ * Block write operations until a forced password change is completed.
+ */
+export function requirePasswordChanged(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  if (req.user.mustChangePassword) {
+    return res.status(403).json({
+      error: 'Password update required before you can perform this action.',
+      code: 'PASSWORD_CHANGE_REQUIRED'
+    });
+  }
+  next();
+}
+
+/**
  * Middleware: Enforce Server-Side Role-Based Access Control (RBAC)
- * Rejects unauthorized users with 403 Forbidden
  */
 export function requireRole(...allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {

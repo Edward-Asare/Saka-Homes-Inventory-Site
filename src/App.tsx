@@ -81,11 +81,13 @@ export default function App() {
             setAppUser(null);
           }
         } else if (!explicitLogout) {
-          // If Supabase is active and has an existing session, restore it
-          if (supabase && isSupabaseConfigured) {
+          const verified = await authService.verifySession();
+          if (verified) {
+            setAppUser(verified);
+          } else if (supabase && isSupabaseConfigured) {
             const { data } = await supabase.auth.getSession();
             if (data.session?.access_token) {
-              const user = await authService.syncSupabaseAccessToken(data.session.access_token);
+              const user = await authService.syncSupabaseSession(data.session.access_token);
               if (user) setAppUser(user);
             }
           }
@@ -103,15 +105,17 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     if (supabase && isSupabaseConfigured) {
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session?.access_token && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+        if (event === 'SIGNED_OUT') {
+          setAppUser(null);
+          return;
+        }
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') && session?.access_token) {
           try {
-            const user = await authService.syncSupabaseAccessToken(session.access_token);
+            const user = await authService.syncSupabaseSession(session.access_token);
             if (user) setAppUser(user);
           } catch (err) {
             console.warn('Supabase session sync notice:', err);
           }
-        } else if (event === 'SIGNED_OUT') {
-          setAppUser(null);
         }
       });
       unsubscribe = () => authListener.subscription.unsubscribe();
@@ -159,21 +163,7 @@ export default function App() {
     try {
       sessionStorage.removeItem('saka_explicit_logout');
       localStorage.setItem('saka_last_activity_timestamp', Date.now().toString());
-      let user: AppUser;
-      if (supabase && isSupabaseConfigured && usernameInput.includes('@') && !usernameInput.toLowerCase().endsWith('@sakainventory')) {
-        try {
-          user = await authService.loginWithSupabase(usernameInput, passwordInput);
-        } catch (supabaseErr: any) {
-          const lower = (supabaseErr.message || '').toLowerCase();
-          if (lower.includes('email not confirmed') || lower.includes('invalid login credentials')) {
-            throw supabaseErr;
-          }
-          // Try local database login if Supabase auth threw connection error
-          user = await authService.login(usernameInput, passwordInput);
-        }
-      } else {
-        user = await authService.login(usernameInput, passwordInput);
-      }
+      const user = await authService.login(usernameInput, passwordInput);
       setAppUser(user);
     } catch (error: any) {
       console.error('Login Error:', error);

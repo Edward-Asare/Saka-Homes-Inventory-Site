@@ -34,7 +34,11 @@ export async function comparePassword(password: string, storedHash: string): Pro
 
   try {
     const legacyHash = crypto.pbkdf2Sync(password, 'saka_homes_salt_2026', 10000, 64, 'sha512').toString('hex');
-    if (legacyHash === storedHash) return true;
+    const storedBuf = Buffer.from(String(storedHash), 'hex');
+    const computedBuf = Buffer.from(legacyHash, 'hex');
+    if (storedBuf.length > 0 && storedBuf.length === computedBuf.length && crypto.timingSafeEqual(storedBuf, computedBuf)) {
+      return true;
+    }
   } catch {}
 
   return false;
@@ -69,6 +73,13 @@ export function generateTemporaryPassword(): string {
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
   return chars.join('');
+}
+
+/**
+ * Cryptographically strong resource IDs (replaces Math.random-based identifiers).
+ */
+export function generateSecureId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
 /**
@@ -157,15 +168,26 @@ export async function recordActivityLog(
   }
 }
 
-function sslConfig(isRemote: boolean): { ssl?: { rejectUnauthorized: boolean } } {
-  if (!isRemote) return {};
-  const override = process.env.PGSSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
-  const rejectUnauthorized = override === 'true'
-    ? true
-    : override === 'false'
-      ? false
-      : process.env.NODE_ENV === 'production';
-  return { ssl: { rejectUnauthorized } };
+/**
+ * TLS verification for hosted Postgres.
+ * Render / Supabase / Neon terminate TLS with a chain Node does not always
+ * trust. Default to encrypted-but-unverified there unless explicitly overridden.
+ */
+export function shouldRejectUnauthorizedTls(connectionHint: string): boolean {
+  const explicit = process.env.PGSSL_REJECT_UNAUTHORIZED?.trim().toLowerCase();
+  if (explicit === 'false' || explicit === '0') return false;
+  if (explicit === 'true' || explicit === '1') return true;
+
+  const hint = (connectionHint || '').toLowerCase();
+  const managedHost =
+    Boolean(process.env.RENDER) ||
+    hint.includes('render.com') ||
+    hint.includes('supabase.com') ||
+    hint.includes('neon.tech') ||
+    hint.includes('amazonaws.com');
+
+  if (managedHost) return false;
+  return true;
 }
 
 function buildPoolConfig(): PoolConfig {
@@ -180,10 +202,11 @@ function buildPoolConfig(): PoolConfig {
 
     const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('::1');
     const isRemote = !isLocalhost || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+    const rejectUnauthorized = shouldRejectUnauthorizedTls(url);
 
     return {
       connectionString: url,
-      ...sslConfig(isRemote),
+      ...(isRemote ? { ssl: { rejectUnauthorized } } : {}),
       max: 10,
       idleTimeoutMillis: 15000,
       connectionTimeoutMillis: 10000,
@@ -199,6 +222,7 @@ function buildPoolConfig(): PoolConfig {
 
   const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   const isRemote = (!isLocalhost && Boolean(process.env.PGHOST)) || process.env.NODE_ENV === 'production' || process.env.PGSSLMODE === 'require';
+  const rejectUnauthorized = shouldRejectUnauthorizedTls(host);
 
   return {
     host,
@@ -206,7 +230,7 @@ function buildPoolConfig(): PoolConfig {
     user,
     password,
     database,
-    ...sslConfig(isRemote),
+    ...(isRemote ? { ssl: { rejectUnauthorized } } : {}),
     max: 10,
     idleTimeoutMillis: 15000,
     connectionTimeoutMillis: 10000,
@@ -309,6 +333,8 @@ export async function initializeDatabase() {
         `, [guestHash]);
       }
     }
+
+    console.log(`[BOOTSTRAP] System accounts verified (${initialAdminUsername}). Existing credentials were not modified.`);
 
     // 1. Categories Table
     await client.query(`
