@@ -134,6 +134,7 @@ export const updateInventoryItemSchema = z.object({
   unitOfMeasure: z.string().trim().min(1).max(100).transform(sanitizeText).optional(),
   minStockLevel: z.coerce.number().min(0).max(1000000).optional(),
   maxStockLevel: z.coerce.number().min(1).max(10000000).optional(),
+  reorderQty: z.coerce.number().min(0).max(1000000).optional(),
   unitCost: z.coerce.number().min(0).max(10000000).optional(),
   supplier: sanitizedOptional(255),
   dateReceived: optionalDateField,

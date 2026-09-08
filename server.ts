@@ -139,9 +139,15 @@ async function startServer() {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // cors treats an array as literal Origin header values. "*" in an array
+  // never matches a real browser origin, so expand it to `true` (reflect request origin).
+  const corsOriginOption = corsOrigins.length > 0
+    ? (corsOrigins.includes("*") ? true : corsOrigins)
+    : !isProduction;
+
   app.use(
     cors({
-      origin: corsOrigins.length > 0 ? corsOrigins : !isProduction,
+      origin: corsOriginOption,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "Accept"]

@@ -991,11 +991,13 @@ router.post('/inventory', requireAuth, requirePasswordChanged, requireRole('ADMI
     }
 
     const id = generateSecureId('item');
-    
-    // Support quantity parameter, falling back to currentStock or reorderQty
-    const parsedQty = quantity !== undefined ? Number(quantity) : (currentStock !== undefined ? Number(currentStock) : Number(reorderQty || 0));
-    const finalStock = parsedQty;
-    const finalReorderQty = parsedQty;
+
+    // On-hand stock and reorder quantity are independent fields.
+    // Initial stock comes from quantity / currentStock only — never from reorderQty.
+    const finalStock = quantity !== undefined
+      ? Number(quantity)
+      : (currentStock !== undefined ? Number(currentStock) : 0);
+    const finalReorderQty = reorderQty !== undefined ? Number(reorderQty) : 0;
     const finalMinStock = Number(minStockLevel || 0);
     const finalMaxStock = maxStockLevel !== undefined ? Number(maxStockLevel) : Math.max(1000, finalMinStock * 10, finalStock * 5);
     const finalDateReceived = dateReceived || lastRestocked || new Date().toISOString().split('T')[0];
@@ -1131,8 +1133,10 @@ router.put('/inventory/:id', requireAuth, requirePasswordChanged, requireRole('A
     const unitOfMeasure = body.unitOfMeasure ?? prev.unit_of_measure;
     const minStockLevel = body.minStockLevel !== undefined ? Number(body.minStockLevel) : Number(prev.min_stock_level);
     const maxStockLevel = body.maxStockLevel !== undefined ? Number(body.maxStockLevel) : Number(prev.max_stock_level);
+    // Stock on hand is only changed via stock movements / PO completion — not item edits.
     const currentStock = Number(prev.current_stock);
-    const reorderQty = Number(prev.reorder_qty);
+    // Reorder quantity is independent of on-hand stock and must never be copied from it.
+    const reorderQty = body.reorderQty !== undefined ? Number(body.reorderQty) : Number(prev.reorder_qty);
 
     const unitCost = body.unitCost !== undefined ? Number(body.unitCost) : Number(prev.unit_cost);
     const supplier = body.supplier ?? prev.supplier;
@@ -1199,6 +1203,7 @@ router.put('/inventory/:id', requireAuth, requirePasswordChanged, requireRole('A
     if (prev.category !== category) changes.push(`Category: "${prev.category}" → "${category}"`);
     if (prev.supplier !== supplier) changes.push(`Supplier: "${prev.supplier || 'None'}" → "${supplier || 'None'}"`);
     if (Number(prev.min_stock_level) !== minStockLevel) changes.push(`Min Stock: ${prev.min_stock_level} → ${minStockLevel}`);
+    if (Number(prev.reorder_qty) !== reorderQty) changes.push(`Reorder Qty: ${prev.reorder_qty} → ${reorderQty}`);
     if (prev.unit_of_measure !== unitOfMeasure) changes.push(`Unit: "${prev.unit_of_measure}" → "${unitOfMeasure}"`);
     if (prev.status !== status) changes.push(`Status: ${prev.status} → ${status}`);
 

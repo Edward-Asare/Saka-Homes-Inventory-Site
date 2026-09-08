@@ -142,6 +142,32 @@ async function run() {
   }
   assert('inventory update requires notes', rejectedMissingNotes);
 
+  const updatedItem = updateInventoryItemSchema.parse({
+    notes: 'Adjusted reorder point',
+    reorderQty: 25,
+    currentStock: 999,
+    quantity: 999
+  });
+  assert(
+    'inventory update accepts reorderQty independently and strips stock fields',
+    updatedItem.reorderQty === 25 && !('currentStock' in updatedItem) && !('quantity' in updatedItem)
+  );
+
+  const createdIndependent = createInventoryItemSchema.parse({
+    itemCode: 'SKH-004',
+    itemName: 'Valve',
+    category: 'Plumbing',
+    unitOfMeasure: 'Units',
+    minStockLevel: 5,
+    unitCost: 1,
+    currentStock: 80,
+    reorderQty: 20
+  });
+  assert(
+    'create keeps reorderQty independent of currentStock',
+    createdIndependent.reorderQty === 20 && createdIndependent.currentStock === 80
+  );
+
   loginSchema.parse({ username: 'admin', password: 'x' });
   assert('login schema accepts credentials', true);
 
