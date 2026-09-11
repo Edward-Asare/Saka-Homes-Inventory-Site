@@ -168,13 +168,13 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#64748B', fontSize: 11, fontWeight: 600 }}
+                  tick={{ fill: '#64748B', fontSize: 11, fontWeight: 500, fontFamily: 'Inter, sans-serif' }}
                   dy={8}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#64748B', fontSize: 11, fontWeight: 600 }}
+                  tick={{ fill: '#64748B', fontSize: 11, fontWeight: 500, fontFamily: 'Inter, sans-serif' }}
                 />
                 <Tooltip 
                   cursor={{ fill: '#F8FAFC' }}
@@ -186,7 +186,8 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
                     boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.2)',
                     padding: '12px 16px',
                     fontSize: '12px',
-                    fontWeight: 600
+                    fontWeight: 600,
+                    fontFamily: 'Inter, sans-serif'
                   }}
                   itemStyle={{ color: '#38BDF8' }}
                 />
@@ -234,7 +235,8 @@ export default function Dashboard({ searchQuery, setActiveView, userRole = 'ADMI
                       borderRadius: '12px',
                       border: 'none',
                       fontSize: '11px',
-                      fontWeight: 600
+                      fontWeight: 600,
+                      fontFamily: 'Inter, sans-serif'
                     }}
                   />
                 </PieChart>

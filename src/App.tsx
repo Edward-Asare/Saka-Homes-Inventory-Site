@@ -285,7 +285,7 @@ export default function App() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E54818]/80 text-white text-xs font-bold shadow-md">
               <span>Saka Homes Architecture & Operations</span>
             </div>
-            <h1 className="text-4xl xl:text-5xl font-heading font-extrabold tracking-tight text-white leading-tight drop-shadow-md">
+            <h1 className="text-4xl xl:text-5xl font-heading font-bold tracking-tight text-white leading-[1.15] drop-shadow-md">
               Saka Homes Inventory Security & Operations Portal
             </h1>
             

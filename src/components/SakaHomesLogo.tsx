@@ -79,16 +79,15 @@ export default function SakaHomesLogo({
 
       {variant !== 'mark' && (
         <div className="flex flex-col">
-          <span 
-            className={`font-heading tracking-tight font-extrabold ${
+          <span
+            className={`font-brand tracking-tight font-bold ${
               variant === 'white' ? 'text-white' : 'text-[#1E1B4B]'
             } ${dimensions.textSize}`}
-            style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
           >
             Saka Homes
           </span>
           {showSubtitle && (
-            <span className={`text-[10px] uppercase font-sans font-extrabold tracking-widest ${
+            <span className={`text-[10px] uppercase font-sans font-semibold tracking-[0.18em] ${
               variant === 'white' ? 'text-orange-400' : 'text-orange-600'
             }`}>
               Inventory System
