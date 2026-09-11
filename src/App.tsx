@@ -302,9 +302,9 @@ export default function App() {
 
         {/* Right Column - Unified Credentials Login Card with Subtle Architectural Watermark */}
         <div className="w-full lg:w-5/12 flex items-center justify-center p-4 sm:p-8 lg:p-12 bg-[#FAF8F5] min-h-screen relative">
-          {/* Subtle Watermark on background */}
+          {/* Architectural watermark: stronger on mobile (full-page backdrop), quieter on the desktop form column */}
           <div 
-            className="absolute inset-0 bg-cover bg-center opacity-[0.035] pointer-events-none"
+            className="absolute inset-0 bg-cover bg-center opacity-[0.10] lg:opacity-[0.05] pointer-events-none"
             style={{ backgroundImage: `url(${loginBg})` }}
           />
           <motion.div 
