@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs, generateSecureId } from './index';
+import { pool, hashPassword, comparePassword, generateTemporaryPassword, recordSecurityAudit, recordActivityLog, purgeOldLogs, generateSecureId, getDummyPasswordHash } from './index';
 import { requireAuth, requireRole, requirePasswordChanged, generateAuthToken, syncOrGetSupabaseProfile, verifySupabaseAccessToken } from '../middleware/auth';
 import { 
   validateRequest, 
@@ -19,6 +19,7 @@ import {
   activityLogsQuerySchema,
   cleanupLogsSchema
 } from '../middleware/validation';
+import { parseManagerWhatsAppContact } from '../lib/httpSecurity';
 
 const router = Router();
 
@@ -31,59 +32,49 @@ function getClientIp(req: Request): string {
 // ==================== AUTHENTICATION & LOGIN ====================
 
 // POST /api/auth/login - Rate limited at server level
+const GENERIC_LOGIN_ERROR = 'Invalid username or password.';
+
 router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: Request, res: Response) => {
   const clientIp = getClientIp(req);
   try {
     const { username, password } = req.body;
-    let trimmedUsername = String(username).trim().toLowerCase();
+    const trimmedUsername = String(username).trim().toLowerCase();
 
-    // Map common aliases
-    if (trimmedUsername === 'admin') trimmedUsername = 'admin@sakainventory';
-    if (trimmedUsername === 'guest') trimmedUsername = 'guest@sakainventory';
-    if (trimmedUsername === 'viewer') trimmedUsername = 'guest@sakainventory';
-
-    // 1. Query user by parameterized username or alias in local PostgreSQL DB
-    let result = await pool.query(
-      'SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1 OR LOWER(username) = $2',
-      [trimmedUsername, String(username).trim().toLowerCase()]
+    const result = await pool.query(
+      'SELECT id, username, password_hash, role, full_name, is_active, must_change_password, token_version FROM users WHERE LOWER(username) = $1',
+      [trimmedUsername]
     );
 
     let authenticatedUser: any = null;
+    const candidate = result.rows[0];
 
-    if (result.rows.length > 0) {
-      const candidate = result.rows[0];
-
-      // If user is locally password-managed (not managed purely via Supabase OAuth/Auth)
-      if (candidate.password_hash !== 'SUPABASE_AUTH_MANAGED' && candidate.password_hash !== 'AUTH_MANAGED') {
-        const passwordMatch = await comparePassword(password, candidate.password_hash);
-        if (passwordMatch) {
-          if (!candidate.is_active) {
-            await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
-              targetUserId: candidate.id,
-              targetUsername: candidate.username,
-              details: 'Login rejected: account is deactivated',
-              ipAddress: clientIp
-            });
-            return res.status(403).json({
-              error: 'Your account has been deactivated. Please contact your system administrator.'
-            });
-          }
-          authenticatedUser = candidate;
-          // Auto-upgrade legacy hash if needed
-          if (!candidate.password_hash.startsWith('$2')) {
-            const upgradedHash = await hashPassword(password);
-            await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [upgradedHash, candidate.id]);
-          }
+    if (!candidate) {
+      await comparePassword(password, await getDummyPasswordHash());
+    } else if (candidate.password_hash !== 'SUPABASE_AUTH_MANAGED' && candidate.password_hash !== 'AUTH_MANAGED') {
+      const passwordMatch = await comparePassword(password, candidate.password_hash);
+      if (passwordMatch) {
+        if (!candidate.is_active) {
+          await recordSecurityAudit(pool, 'LOGIN_FAILURE', {
+            targetUserId: candidate.id,
+            targetUsername: candidate.username,
+            details: 'Login rejected: account is deactivated',
+            ipAddress: clientIp
+          });
+          return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
+        }
+        authenticatedUser = candidate;
+        if (!candidate.password_hash.startsWith('$2')) {
+          const upgradedHash = await hashPassword(password);
+          await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [upgradedHash, candidate.id]);
         }
       }
     }
 
-    // 2. Fallback: Check credentials via Supabase Auth REST API on server (if Supabase credentials are configured)
     if (!authenticatedUser) {
       const rawSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
       const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-      if (rawSupabaseUrl && rawAnonKey && (trimmedUsername.includes('@') || String(username).includes('@'))) {
+      if (rawSupabaseUrl && rawAnonKey && trimmedUsername.includes('@')) {
         try {
           const authEndpoint = `${rawSupabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`;
           const supabaseAuthRes = await fetch(authEndpoint, {
@@ -114,9 +105,7 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
                   details: 'Login rejected: account is deactivated',
                   ipAddress: clientIp
                 });
-                return res.status(403).json({
-                  error: 'Your account has been deactivated. Please contact your system administrator.'
-                });
+                return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
               }
               authenticatedUser = synced;
             }
@@ -134,12 +123,15 @@ router.post('/auth/login', validateRequest({ body: loginSchema }), async (req: R
         ipAddress: clientIp
       });
       return res.status(401).json({
-        error: 'Invalid username or password.'
+        error: GENERIC_LOGIN_ERROR
       });
     }
 
     // Record last login timestamp
-    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [authenticatedUser.id]).catch(() => {});
+    await pool.query(
+      'UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [authenticatedUser.id]
+    ).catch(() => {});
 
     const userPayload = {
       id: authenticatedUser.id,
@@ -225,8 +217,8 @@ router.post('/auth/supabase-sync', validateRequest({ body: supabaseSyncSchema })
     });
 
     if (profile.isActive === false) {
-      return res.status(403).json({
-        error: 'Your account has been deactivated. Please contact your system administrator.'
+      return res.status(401).json({
+        error: 'Invalid or expired Supabase access token.'
       });
     }
 
@@ -238,7 +230,10 @@ router.post('/auth/supabase-sync', validateRequest({ body: supabaseSyncSchema })
       tokenVersion: profile.tokenVersion
     });
 
-    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [profile.id]).catch(() => {});
+    await pool.query(
+      'UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [profile.id]
+    ).catch(() => {});
 
     await recordSecurityAudit(pool, 'LOGIN_SUCCESS', {
       actorId: profile.id,
@@ -402,6 +397,76 @@ router.get('/auth/me', requireAuth, async (req: Request, res: Response) => {
     console.error('Auth verification error:', error);
     res.status(500).json({ error: 'Failed to verify authentication session.' });
   }
+});
+
+// POST /api/auth/logout - Revoke the current JWT by incrementing token_version
+router.post('/auth/logout', requireAuth, async (req: Request, res: Response) => {
+  const clientIp = getClientIp(req);
+  try {
+    await pool.query(
+      'UPDATE users SET token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [req.user!.id]
+    );
+    await recordSecurityAudit(pool, 'LOGOUT', {
+      actorId: req.user!.id,
+      actorUsername: req.user!.username,
+      details: 'Session revoked (token_version incremented)',
+      ipAddress: clientIp
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Failed to end session.' });
+  }
+});
+
+// POST /api/auth/activity - Heartbeat from real user interaction (not GET polling)
+router.post('/auth/activity', requireAuth, async (_req: Request, res: Response) => {
+  res.json({ success: true });
+});
+
+// GET /api/contact - Manager WhatsApp number from environment (no hardcoded credentials)
+router.get('/contact', requireAuth, async (_req: Request, res: Response) => {
+  const contact = parseManagerWhatsAppContact();
+  if (!contact) {
+    return res.status(404).json({ error: 'Manager contact is not configured.' });
+  }
+  res.json(contact);
+});
+
+// POST /api/auth/logout - Revoke the current JWT by incrementing token_version
+router.post('/auth/logout', requireAuth, async (req: Request, res: Response) => {
+  const clientIp = getClientIp(req);
+  try {
+    await pool.query(
+      'UPDATE users SET token_version = token_version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [req.user!.id]
+    );
+    await recordSecurityAudit(pool, 'LOGOUT', {
+      actorId: req.user!.id,
+      actorUsername: req.user!.username,
+      details: 'Session revoked (token_version incremented)',
+      ipAddress: clientIp
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Failed to end session.' });
+  }
+});
+
+// POST /api/auth/activity - Heartbeat from real user interaction (not GET polling)
+router.post('/auth/activity', requireAuth, async (_req: Request, res: Response) => {
+  res.json({ success: true });
+});
+
+// GET /api/contact - Manager WhatsApp number from environment (no hardcoded credentials)
+router.get('/contact', requireAuth, async (_req: Request, res: Response) => {
+  const contact = parseManagerWhatsAppContact();
+  if (!contact) {
+    return res.status(404).json({ error: 'Manager contact is not configured.' });
+  }
+  res.json(contact);
 });
 
 // ==================== USER MANAGEMENT (ADMIN ONLY) ====================

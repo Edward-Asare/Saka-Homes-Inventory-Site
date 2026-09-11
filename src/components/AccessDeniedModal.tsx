@@ -57,7 +57,7 @@ export default function AccessDeniedModal({ isOpen, onClose, actionName }: Acces
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-normal">
-                  To perform administrative modifications, please log out and sign in using an <strong className="text-slate-700">Admin Account</strong> (<code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">admin@sakainventory</code>).
+                  To perform administrative modifications, please log out and sign in with an administrator account.
                 </p>
               </div>
 

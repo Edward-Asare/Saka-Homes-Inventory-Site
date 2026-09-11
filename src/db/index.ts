@@ -19,6 +19,18 @@ export async function hashPassword(password: string): Promise<string> {
 /**
  * Secure password comparison against stored bcrypt hash.
  */
+let dummyPasswordHash: string | null = null;
+
+/**
+ * Constant-time-ish dummy hash so unknown-user logins still run bcrypt.
+ */
+export async function getDummyPasswordHash(): Promise<string> {
+  if (!dummyPasswordHash) {
+    dummyPasswordHash = await hashPassword(crypto.randomBytes(32).toString('hex'));
+  }
+  return dummyPasswordHash;
+}
+
 export async function comparePassword(password: string, storedHash: string): Promise<boolean> {
   if (!password || !storedHash) return false;
   
@@ -88,7 +100,7 @@ export function generateSecureId(prefix: string): string {
  */
 export async function recordSecurityAudit(
   clientOrPool: pg.Pool | pg.PoolClient,
-  eventType: 'USER_CREATED' | 'USER_DEACTIVATED' | 'USER_ACTIVATED' | 'USER_DELETED' | 'ROLE_CHANGED' | 'PASSWORD_RESET' | 'PASSWORD_CHANGED' | 'LOGIN_SUCCESS' | 'LOGIN_FAILURE',
+  eventType: 'USER_CREATED' | 'USER_DEACTIVATED' | 'USER_ACTIVATED' | 'USER_DELETED' | 'ROLE_CHANGED' | 'PASSWORD_RESET' | 'PASSWORD_CHANGED' | 'LOGIN_SUCCESS' | 'LOGIN_FAILURE' | 'LOGOUT',
   params: {
     actorId?: string;
     actorUsername?: string;
@@ -264,6 +276,7 @@ export async function initializeDatabase() {
         must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
         token_version INT NOT NULL DEFAULT 1,
         last_login_at TIMESTAMPTZ,
+        last_activity_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
@@ -274,6 +287,7 @@ export async function initializeDatabase() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;`);
 
     // 0.1 Security Audit Logs Table
     await client.query(`
@@ -292,49 +306,56 @@ export async function initializeDatabase() {
 
     // Bootstrap initial accounts only when they do not already exist.
     // Never overwrite password_hash, role, or is_active on existing rows.
-    const initialAdminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin@sakainventory').toLowerCase().trim();
+    // Usernames and passwords come only from environment variables — never hardcoded defaults.
+    const initialAdminUsername = (process.env.INITIAL_ADMIN_USERNAME || '').toLowerCase().trim();
     const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD?.trim();
-    const initialAdminName = process.env.INITIAL_ADMIN_NAME || 'System Administrator';
+    const initialAdminName = (process.env.INITIAL_ADMIN_NAME || 'System Administrator').trim();
+    const initialGuestUsername = (process.env.INITIAL_GUEST_USERNAME || '').toLowerCase().trim();
     const initialGuestPassword = process.env.INITIAL_GUEST_PASSWORD?.trim();
+    const initialGuestName = (process.env.INITIAL_GUEST_NAME || 'Guest User').trim();
 
     const existingAdmin = await client.query(
       "SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1"
     );
 
     if (existingAdmin.rows.length === 0) {
-      if (!initialAdminPassword || initialAdminPassword.length < 12) {
-        const message = 'No administrator exists and INITIAL_ADMIN_PASSWORD is missing or shorter than 12 characters. Set INITIAL_ADMIN_PASSWORD to create the first admin account.';
+      if (!initialAdminUsername || !initialAdminPassword || initialAdminPassword.length < 12) {
+        const message = 'No administrator exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD (min 12 characters) to create the first admin account.';
         if (process.env.NODE_ENV === 'production') {
           throw new Error(message);
         }
         console.error(`[BOOTSTRAP] ${message}`);
       } else {
         const adminHash = await hashPassword(initialAdminPassword);
+        const adminId = generateSecureId('usr');
         await client.query(`
           INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-          VALUES ('usr_admin_01', $1, $2, 'ADMIN', $3, TRUE, TRUE, 1)
-          ON CONFLICT (id) DO NOTHING
-        `, [initialAdminUsername, adminHash, initialAdminName]);
-        console.log(`[BOOTSTRAP] Created initial administrator (${initialAdminUsername}). Password change required on first login.`);
+          VALUES ($1, $2, $3, 'ADMIN', $4, TRUE, TRUE, 1)
+          ON CONFLICT (username) DO NOTHING
+        `, [adminId, initialAdminUsername, adminHash, initialAdminName]);
+        console.log('[BOOTSTRAP] Created initial administrator from environment credentials. Password change required on first login.');
       }
     } else {
       console.log('[BOOTSTRAP] Administrator account already present; leaving credentials unchanged.');
     }
 
-    if (initialGuestPassword && initialGuestPassword.length >= 8) {
+    if (initialGuestUsername && initialGuestPassword && initialGuestPassword.length >= 8) {
       const existingGuest = await client.query(
-        "SELECT id FROM users WHERE id = 'usr_guest_01' OR LOWER(username) = 'guest@sakainventory' LIMIT 1"
+        'SELECT id FROM users WHERE LOWER(username) = $1 LIMIT 1',
+        [initialGuestUsername]
       );
       if (existingGuest.rows.length === 0) {
         const guestHash = await hashPassword(initialGuestPassword);
+        const guestId = generateSecureId('usr');
         await client.query(`
           INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version)
-          VALUES ('usr_guest_01', 'guest@sakainventory', $1, 'GUEST', 'Guest User', TRUE, TRUE, 1)
-        `, [guestHash]);
+          VALUES ($1, $2, $3, 'GUEST', $4, TRUE, TRUE, 1)
+          ON CONFLICT (username) DO NOTHING
+        `, [guestId, initialGuestUsername, guestHash, initialGuestName]);
       }
     }
 
-    console.log(`[BOOTSTRAP] System accounts verified (${initialAdminUsername}). Existing credentials were not modified.`);
+    console.log('[BOOTSTRAP] System accounts verified. Existing credentials were not modified.');
 
     // 1. Categories Table
     await client.query(`

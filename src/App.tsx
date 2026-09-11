@@ -335,7 +335,7 @@ export default function App() {
                       required
                       value={usernameInput}
                       onChange={(e) => setUsernameInput(e.target.value)}
-                      placeholder="e.g. yourname@sakainventory"
+                      placeholder="Username or email"
                       autoComplete="username"
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-[#1E1B4B] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E54818] transition-all"
                     />

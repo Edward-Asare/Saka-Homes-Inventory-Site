@@ -9,6 +9,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { initializeDatabase, purgeOldLogs, pool } from "./src/db/index";
 import apiRoutes from "./src/db/apiRoutes";
 import { validateSecurityConfig } from "./src/middleware/auth";
+import { resolveCorsOriginOption } from "./src/lib/httpSecurity";
 
 function resolveDistPath(): string {
   const candidates: string[] = [];
@@ -134,16 +135,7 @@ async function startServer() {
     })
   );
 
-  const corsOrigins = (process.env.CORS_ORIGIN || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  // cors treats an array as literal Origin header values. "*" in an array
-  // never matches a real browser origin, so expand it to `true` (reflect request origin).
-  const corsOriginOption = corsOrigins.length > 0
-    ? (corsOrigins.includes("*") ? true : corsOrigins)
-    : !isProduction;
+  const corsOriginOption = resolveCorsOriginOption(isProduction, process.env.CORS_ORIGIN || "");
 
   app.use(
     cors({
@@ -188,6 +180,7 @@ async function startServer() {
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/supabase-sync", authLimiter);
   app.use("/api/auth/change-password", authLimiter);
+  app.use("/api/auth/logout", authLimiter);
   app.use("/api", generalApiLimiter);
 
   // Mount Hardened API Routes

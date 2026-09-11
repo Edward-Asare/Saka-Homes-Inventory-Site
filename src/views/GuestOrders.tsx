@@ -7,7 +7,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { InventoryItem, AppUser, UserRole } from '../types';
-import { inventoryService } from '../services/dataService';
+import { inventoryService, authService } from '../services/dataService';
 import SakaHomesLogo from '../components/SakaHomesLogo';
 
 interface GuestOrdersProps {
@@ -33,6 +33,8 @@ interface SavedOrder {
 export default function GuestOrders({ currentUser, userRole, searchQuery = '', onNavigate }: GuestOrdersProps) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [managerPhoneDisplay, setManagerPhoneDisplay] = useState<string>('');
+  const [managerPhoneClean, setManagerPhoneClean] = useState<string>('');
 
   // Form State
   const [selectedItemId, setSelectedItemId] = useState<string>('');
@@ -47,9 +49,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Manager contact details
-  const MANAGER_PHONE_DISPLAY = '+233 545327825';
-  const MANAGER_PHONE_CLEAN = '233545327825';
+  const contactConfigured = Boolean(managerPhoneClean);
 
   // Local Order History
   const [orderHistory, setOrderHistory] = useState<SavedOrder[]>(() => {
@@ -65,6 +65,12 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
     const unsubscribe = inventoryService.subscribe((newItems) => {
       setItems(newItems);
       setLoading(false);
+    });
+    authService.getManagerContact().then((contact) => {
+      if (contact) {
+        setManagerPhoneDisplay(contact.managerPhoneDisplay);
+        setManagerPhoneClean(contact.managerPhoneClean);
+      }
     });
     return unsubscribe;
   }, []);
@@ -147,8 +153,13 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
       return;
     }
 
+    if (!managerPhoneClean) {
+      setFormError('Manager WhatsApp contact is not configured. Ask an administrator to set MANAGER_WHATSAPP_E164.');
+      return;
+    }
+
     const message = generateWhatsAppMessage();
-    const whatsappUrl = `https://wa.me/${MANAGER_PHONE_CLEAN}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/${managerPhoneClean}?text=${encodeURIComponent(message)}`;
 
     // Save to local order history
     const newOrder: SavedOrder = {
@@ -161,7 +172,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
       priority,
       notes: notes.trim(),
       sentAt: new Date().toISOString(),
-      managerPhone: MANAGER_PHONE_DISPLAY
+      managerPhone: managerPhoneDisplay
     };
 
     const updatedHistory = [newOrder, ...orderHistory.slice(0, 19)];
@@ -178,6 +189,10 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
   };
 
   const handleResendHistoryOrder = (order: SavedOrder) => {
+    if (!managerPhoneClean) {
+      setFormError('Manager WhatsApp contact is not configured.');
+      return;
+    }
     const requesterName = currentUser?.fullName || currentUser?.username || 'Guest / Site Agent';
     const dateStr = new Date().toLocaleDateString('en-GB', { 
       day: '2-digit', 
@@ -205,7 +220,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
       `----------------------------------------\n` +
       `_Dispatched via Saka Homes Inventory Portal_`;
 
-    const whatsappUrl = `https://wa.me/${MANAGER_PHONE_CLEAN}?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/${managerPhoneClean}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -264,7 +279,7 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
                 <p>WhatsApp dispatch initiated!</p>
-                <p className="text-[11px] font-normal text-emerald-700">Opening WhatsApp to send order to {MANAGER_PHONE_DISPLAY}...</p>
+                <p className="text-[11px] font-normal text-emerald-700">Opening WhatsApp to send order to {managerPhoneDisplay}...</p>
               </div>
             </div>
           )}
@@ -393,10 +408,11 @@ export default function GuestOrders({ currentUser, userRole, searchQuery = '', o
             <div className="pt-3">
               <button
                 type="submit"
-                className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-2xl font-heading font-black text-sm shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-3 group cursor-pointer"
+                disabled={!contactConfigured}
+                className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white rounded-2xl font-heading font-black text-sm shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <MessageSquare className="w-5 h-5 text-white transition-transform group-hover:scale-110" />
-                <span>Send Order via WhatsApp to Manager ({MANAGER_PHONE_DISPLAY})</span>
+                <span>Send Order via WhatsApp to Manager{managerPhoneDisplay ? ` (${managerPhoneDisplay})` : ''}</span>
                 <ExternalLink className="w-4 h-4 opacity-80" />
               </button>
             </div>

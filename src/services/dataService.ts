@@ -85,6 +85,14 @@ export const authService = {
 
   logout: async () => {
     try {
+      await fetchApi<{ success: boolean }>('/api/auth/logout', {
+        method: 'POST',
+        skipAuthLogout: true,
+      });
+    } catch {
+      // Continue local cleanup even if the server is unreachable
+    }
+    try {
       if (supabase && isSupabaseConfigured) {
         // Local scope avoids a 403 from Supabase /logout when the session is already gone
         await supabase.auth.signOut({ scope: 'local' });
@@ -96,6 +104,27 @@ export const authService = {
     localStorage.removeItem('saka_app_user');
     localStorage.removeItem('saka_last_activity_timestamp');
     window.dispatchEvent(new CustomEvent('saka:logout'));
+  },
+
+  pingActivity: async (): Promise<void> => {
+    const token = getStoredAuthToken();
+    if (!token) return;
+    try {
+      await fetchApi<{ success: boolean }>('/api/auth/activity', {
+        method: 'POST',
+        skipAuthLogout: true,
+      });
+    } catch {
+      // Idle expiry is enforced on the next authenticated request
+    }
+  },
+
+  getManagerContact: async (): Promise<{ managerPhoneDisplay: string; managerPhoneClean: string } | null> => {
+    try {
+      return await fetchApi<{ managerPhoneDisplay: string; managerPhoneClean: string }>('/api/contact');
+    } catch {
+      return null;
+    }
   },
 
   syncSupabaseSession: async (accessToken: string): Promise<AppUser> => {
@@ -208,7 +237,8 @@ async function fetchApi<T>(
   const isPublicAuthEndpoint =
     endpoint === '/api/auth/login' ||
     endpoint === '/api/health' ||
-    endpoint === '/api/auth/supabase-sync';
+    endpoint === '/api/auth/supabase-sync' ||
+    endpoint === '/api/auth/logout';
 
   if (token && !headers['Authorization'] && !headers['authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -237,7 +267,7 @@ async function fetchApi<T>(
     }
 
     if (res.status === 401) {
-      if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync' || skipAuthLogout) {
+      if (endpoint === '/api/auth/login' || endpoint === '/api/auth/supabase-sync' || endpoint === '/api/auth/logout' || skipAuthLogout) {
         errMsg = errMsg || 'Unauthorized (401): Invalid username or password.';
       } else {
         authService.logout();

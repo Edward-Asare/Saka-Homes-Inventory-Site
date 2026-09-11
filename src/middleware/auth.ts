@@ -131,6 +131,7 @@ export interface AuthUserPayload {
   fullName: string;
   mustChangePassword?: boolean;
   tokenVersion?: number;
+  lastActivityAt?: Date | string | null;
 }
 
 declare global {
@@ -246,11 +247,28 @@ function requestPath(req: Request): string {
   return `${req.baseUrl || ''}${req.path || ''}`;
 }
 
+export const SESSION_IDLE_MS = 15 * 60 * 1000;
+
 function isAllowedDuringForcedPasswordChange(req: Request): boolean {
   const path = requestPath(req);
   if (req.method === 'GET' && path.endsWith('/auth/me')) return true;
   if (req.method === 'POST' && path.endsWith('/auth/change-password')) return true;
+  if (req.method === 'POST' && path.endsWith('/auth/logout')) return true;
   return false;
+}
+
+function isIdleExempt(req: Request): boolean {
+  const path = requestPath(req);
+  if (req.method === 'POST' && path.endsWith('/auth/logout')) return true;
+  if (req.method === 'POST' && path.endsWith('/auth/change-password')) return true;
+  return false;
+}
+
+function shouldTouchActivity(req: Request): boolean {
+  const path = requestPath(req);
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return false;
+  if (path.endsWith('/auth/logout')) return false;
+  return true;
 }
 
 function rejectIfPasswordChangeRequired(req: Request, res: Response): boolean {
@@ -262,6 +280,56 @@ function rejectIfPasswordChangeRequired(req: Request, res: Response): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Idle timeout, activity stamp, and forced-password gate after a DB user is resolved.
+ * Returns true when a response has already been sent.
+ */
+async function applySessionGuards(
+  req: Request,
+  res: Response,
+  user: AuthUserPayload & { isActive: boolean; lastActivityAt?: Date | string | null }
+): Promise<boolean> {
+  if (!user.isActive) {
+    res.status(401).json({
+      error: 'Session has been revoked. Please sign in again.'
+    });
+    return true;
+  }
+
+  if (!user.lastActivityAt) {
+    await pool.query(
+      'UPDATE users SET last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
+    ).catch(() => {});
+  } else if (!isIdleExempt(req)) {
+    const lastMs = new Date(user.lastActivityAt).getTime();
+    if (!Number.isNaN(lastMs) && Date.now() - lastMs > SESSION_IDLE_MS) {
+      res.status(401).json({
+        error: 'Session expired due to inactivity. Please sign in again.'
+      });
+      return true;
+    }
+  }
+
+  if (shouldTouchActivity(req)) {
+    await pool.query(
+      'UPDATE users SET last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
+    ).catch(() => {});
+  }
+
+  req.user = {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+    role: user.role,
+    mustChangePassword: Boolean(user.mustChangePassword),
+    tokenVersion: user.tokenVersion
+  };
+
+  return rejectIfPasswordChangeRequired(req, res);
 }
 
 /**
@@ -313,21 +381,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         userMetadata: supabaseIdentity.userMetadata
       });
 
-      if (!synced.isActive) {
-        return res.status(403).json({
-          error: 'Your account has been deactivated. Please contact your system administrator.'
-        });
-      }
-
-      req.user = {
-        id: synced.id,
-        username: synced.username,
-        fullName: synced.fullName,
-        role: synced.role as UserRole,
-        mustChangePassword: Boolean(synced.mustChangePassword),
-        tokenVersion: synced.tokenVersion
-      };
-      if (rejectIfPasswordChangeRequired(req, res)) return;
+      if (await applySessionGuards(req, res, synced)) return;
       return next();
     }
 
@@ -338,21 +392,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     const userId = String(decoded.sub || (decoded as any).userId || (decoded as any).id);
-    const usernameOrEmail = String(
-      (decoded as any).username || (decoded as any).email || (decoded as any).user_metadata?.email || ''
-    ).toLowerCase().trim();
-
-    const dbUser = await getActiveUserRecord(userId, usernameOrEmail);
+    const dbUser = await getActiveUserRecord(userId);
 
     if (!dbUser) {
       return res.status(401).json({
         error: 'Invalid authentication token.'
-      });
-    }
-
-    if (!dbUser.isActive) {
-      return res.status(403).json({
-        error: 'Your account has been deactivated. Please contact your system administrator.'
       });
     }
 
@@ -364,16 +408,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       });
     }
 
-    req.user = {
-      id: dbUser.id,
-      username: dbUser.username,
-      fullName: dbUser.fullName,
-      role: dbUser.role as UserRole,
-      mustChangePassword: Boolean(dbUser.mustChangePassword),
-      tokenVersion: dbUser.tokenVersion
-    };
-
-    if (rejectIfPasswordChangeRequired(req, res)) return;
+    if (await applySessionGuards(req, res, dbUser)) return;
     next();
   } catch (err: any) {
     if (isTokenExpiredError(err)) {
@@ -388,18 +423,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 /**
- * Load an existing user. Does not auto-provision from untrusted JWT claims.
+ * Load an existing user by primary key only. Username/email from JWT claims are never used.
  */
 async function getActiveUserRecord(
-  userId: string,
-  usernameOrEmail: string
+  userId: string
 ): Promise<(AuthUserPayload & { isActive: boolean }) | null> {
   const userDbResult = await pool.query(
-    `SELECT id, username, full_name, is_active, token_version, role, must_change_password
+    `SELECT id, username, full_name, is_active, token_version, role, must_change_password, last_activity_at
      FROM users
-     WHERE id = $1 OR ($2 <> '' AND LOWER(username) = $2)
+     WHERE id = $1
      LIMIT 1`,
-    [userId, usernameOrEmail]
+    [userId]
   );
 
   if (userDbResult.rows.length === 0) {
@@ -414,22 +448,14 @@ async function getActiveUserRecord(
     role: dbUser.role as UserRole,
     isActive: Boolean(dbUser.is_active),
     mustChangePassword: Boolean(dbUser.must_change_password),
-    tokenVersion: dbUser.token_version || 1
+    tokenVersion: dbUser.token_version || 1,
+    lastActivityAt: dbUser.last_activity_at || null
   };
-}
-
-const ALLOWED_PROVISION_ROLES: UserRole[] = ['GUEST', 'VIEWER', 'MANAGER'];
-
-function sanitizeProvisionRole(role: unknown): UserRole {
-  if (typeof role === 'string' && ALLOWED_PROVISION_ROLES.includes(role as UserRole)) {
-    return role as UserRole;
-  }
-  return 'GUEST';
 }
 
 /**
  * Retrieve or auto-provision a user after a *verified* Supabase identity.
- * Client-supplied ADMIN roles are ignored. The first account becomes ADMIN.
+ * Lookup is by subject id only. New identities are always GUEST — never ADMIN.
  */
 export async function syncOrGetSupabaseProfile(userPayload: {
   id: string;
@@ -453,37 +479,36 @@ export async function syncOrGetSupabaseProfile(userPayload: {
   ).slice(0, 255);
 
   const userDbResult = await pool.query(
-    `SELECT id, username, full_name, is_active, token_version, role, must_change_password
+    `SELECT id, username, full_name, is_active, token_version, role, must_change_password, last_activity_at
      FROM users
-     WHERE id = $1 OR (username != '' AND LOWER(username) = $2)
+     WHERE id = $1
      LIMIT 1`,
-    [userId, usernameOrEmail]
+    [userId]
   );
 
   let dbUser;
 
   if (userDbResult.rows.length > 0) {
     dbUser = userDbResult.rows[0];
-    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [dbUser.id]).catch(() => {});
+    await pool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_activity_at = CURRENT_TIMESTAMP WHERE id = $1', [dbUser.id]).catch(() => {});
   } else {
     const assignedUsername = usernameOrEmail || `user_${userId.slice(0, 8)}`;
-    const countRes = await pool.query("SELECT COUNT(*) as count FROM users WHERE role = 'ADMIN'");
-    const adminCount = parseInt(countRes.rows[0]?.count || '0', 10);
-    const assignedRole: UserRole = adminCount === 0 ? 'ADMIN' : sanitizeProvisionRole(userPayload.role);
+    const assignedRole: UserRole = 'GUEST';
 
     try {
       const insertRes = await pool.query(`
-        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at)
-        VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP)
+        INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at, last_activity_at)
+        VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO UPDATE SET
-          last_login_at = CURRENT_TIMESTAMP
-        RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
+          last_login_at = CURRENT_TIMESTAMP,
+          last_activity_at = CURRENT_TIMESTAMP
+        RETURNING id, username, full_name, is_active, token_version, role, must_change_password, last_activity_at;
       `, [userId, assignedUsername, assignedRole, metaFullName]);
 
       dbUser = insertRes.rows[0];
     } catch (insertErr) {
       const fallbackQuery = await pool.query(
-        'SELECT id, username, full_name, is_active, token_version, role, must_change_password FROM users WHERE id = $1 LIMIT 1',
+        'SELECT id, username, full_name, is_active, token_version, role, must_change_password, last_activity_at FROM users WHERE id = $1 LIMIT 1',
         [userId]
       );
       if (fallbackQuery.rows.length > 0) {
@@ -491,10 +516,10 @@ export async function syncOrGetSupabaseProfile(userPayload: {
       } else {
         const uniqueUsername = `${assignedUsername.replace(/@.*/, '')}_${userId.slice(0, 8)}`.slice(0, 100);
         const retryRes = await pool.query(`
-          INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at)
-          VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP)
+          INSERT INTO users (id, username, password_hash, role, full_name, is_active, must_change_password, token_version, last_login_at, last_activity_at)
+          VALUES ($1, $2, 'SUPABASE_AUTH_MANAGED', $3, $4, TRUE, FALSE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT (id) DO NOTHING
-          RETURNING id, username, full_name, is_active, token_version, role, must_change_password;
+          RETURNING id, username, full_name, is_active, token_version, role, must_change_password, last_activity_at;
         `, [userId, uniqueUsername, assignedRole, metaFullName]);
         if (retryRes.rows.length > 0) {
           dbUser = retryRes.rows[0];
@@ -512,7 +537,8 @@ export async function syncOrGetSupabaseProfile(userPayload: {
     role: dbUser.role as UserRole,
     isActive: Boolean(dbUser.is_active),
     mustChangePassword: Boolean(dbUser.must_change_password),
-    tokenVersion: dbUser.token_version || 1
+    tokenVersion: dbUser.token_version || 1,
+    lastActivityAt: dbUser.last_activity_at || null
   };
 }
 

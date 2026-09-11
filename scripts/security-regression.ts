@@ -4,8 +4,9 @@
  */
 import jwt from 'jsonwebtoken';
 import { generateAuthToken, getJwtSecret, verifyAppToken } from '../src/middleware/auth';
-import { comparePassword, hashPassword, shouldRejectUnauthorizedTls } from '../src/db/index';
+import { comparePassword, hashPassword, getDummyPasswordHash, shouldRejectUnauthorizedTls } from '../src/db/index';
 import { sanitizeText, sanitizeMultiline } from '../src/lib/sanitize';
+import { parseManagerWhatsAppContact, resolveCorsOriginOption } from '../src/lib/httpSecurity';
 import {
   createPOSchema,
   createInventoryItemSchema,
@@ -39,7 +40,7 @@ async function run() {
   assert('token includes issuer', verified.iss === 'saka-homes-inventory');
 
   const forged = jwt.sign(
-    { sub: 'usr_admin_01', role: 'ADMIN', username: 'admin', tokenVersion: 1 },
+    { sub: 'usr_attacker', role: 'ADMIN', username: 'attacker', tokenVersion: 1 },
     'attacker-secret',
     { algorithm: 'HS256', expiresIn: '12h', issuer: 'saka-homes-inventory' }
   );
@@ -53,7 +54,7 @@ async function run() {
 
   let rejectedNone = false;
   try {
-    const unsigned = jwt.sign({ sub: 'usr_admin_01', role: 'ADMIN' }, '', { algorithm: 'none' as jwt.Algorithm });
+    const unsigned = jwt.sign({ sub: 'usr_attacker', role: 'ADMIN' }, '', { algorithm: 'none' as jwt.Algorithm });
     try {
       verifyAppToken(unsigned);
     } catch {
@@ -73,6 +74,9 @@ async function run() {
   assert('correct password matches', await comparePassword('CorrectHorse1', hash));
   assert('wrong password rejected', !(await comparePassword('wrong', hash)));
   assert('plaintext fallback removed', !(await comparePassword('plaintext-secret', 'plaintext-secret')));
+  const dummy = await getDummyPasswordHash();
+  assert('dummy hash is bcrypt', dummy.startsWith('$2'));
+  assert('dummy hash does not match attacker password', !(await comparePassword('CorrectHorse1', dummy)));
 
   console.log('\n[3] XSS / string sanitization');
   assert('strips script tags', sanitizeText('<script>alert(1)</script>Hello') === 'Hello');
@@ -186,6 +190,17 @@ async function run() {
   else process.env.PGSSL_REJECT_UNAUTHORIZED = previousReject;
   if (previousRender === undefined) delete process.env.RENDER;
   else process.env.RENDER = previousRender;
+
+  console.log('\n[6] CORS and contact config');
+  assert('production wildcard CORS is same-origin', resolveCorsOriginOption(true, '*') === false);
+  assert('production explicit origin is kept', (resolveCorsOriginOption(true, 'https://app.example.com') as string[])[0] === 'https://app.example.com');
+  assert('dev unset CORS reflects origin', resolveCorsOriginOption(false, '') === true);
+  assert('missing WhatsApp env returns null', parseManagerWhatsAppContact({}) === null);
+  const parsedContact = parseManagerWhatsAppContact({
+    MANAGER_WHATSAPP_E164: '233555000000',
+    MANAGER_WHATSAPP_DISPLAY: '+233 555 000 000'
+  } as NodeJS.ProcessEnv);
+  assert('WhatsApp contact parsed from env', parsedContact?.managerPhoneClean === '233555000000');
 
   console.log('\nDone.');
   process.exit(failed === 0 ? 0 : 1);

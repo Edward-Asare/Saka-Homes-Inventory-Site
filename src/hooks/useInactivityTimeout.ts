@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { authService } from '../services/dataService';
 
 interface InactivityTimeoutOptions {
   /**
@@ -34,11 +35,18 @@ export function useInactivityTimeout({
   const onTimeoutRef = useRef(onTimeout);
   onTimeoutRef.current = onTimeout;
 
+  const lastPingRef = useRef(0);
+
   const updateLastActivity = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY_LAST_ACTIVITY, Date.now().toString());
     } catch {
       // Ignore localStorage exceptions in private browsing if restricted
+    }
+    const now = Date.now();
+    if (now - lastPingRef.current > 30_000) {
+      lastPingRef.current = now;
+      void authService.pingActivity();
     }
   }, []);
 
